@@ -3,4 +3,5 @@
 003 20
 ; comment
 004 LOAD M(2) ADD M(3)  ;comment
-005 STOR M(0) HALT
+005 STOR M(1) HALT
+006 LOAD MQ,M(4) HALT
