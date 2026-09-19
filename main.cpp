@@ -3,6 +3,8 @@
 #include <iostream>
 #include <print>
 #include <vector>
+#include <cstdint>
+#include <stack>
 
 using std::ifstream;
 
@@ -27,7 +29,7 @@ enum class BASE_OPCODE : int8_t {
   NONE = 10
 };
 
-enum class OPCODES : int8_t {
+enum OPCODES : int8_t {
   HALT = 0b0, // 0  - HALT
   // LOAD AC INSTRS
   LOAD_M = 0b00000001,     // 1  - load M into AC
@@ -72,6 +74,7 @@ struct INSTRUCTION {
   OPCODES opcode;
   int8_t operand = 0b0;
 };
+
 
 BASE_OPCODE strToBASEOPCODE(std::string str) {
   if (str == "HALT") {
@@ -136,13 +139,20 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
   std::string arg;
   std::string marg;
 
-  for (const char &c : str) {
-    if (isdigit(c)) {
-      marg += c;
+  bool stopDigits = false;
+
+  for (int c = 0; c < str.length(); ++c) {
+    if (isdigit(str[c]) && !stopDigits) {
+      if (str[c+1]==',') {
+        stopDigits = true;
+      }
+      marg += str[c];
     } else {
-      arg += c;
+      if (str[c] == ',') continue;
+      arg += str[c];
     }
   }
+
   return {{TOKEN_TYPE::ARG, arg}, {TOKEN_TYPE::MARG, marg}};
 }
 
@@ -166,6 +176,181 @@ void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp) {
   }
 }
 
+OPCODES getLoadOPCODE(std::string val) {
+  if (val == "M()") return OPCODES::LOAD_M;
+  if (val == "-M()") return OPCODES::LOAD_NEGM;
+  if (val == "|M()|") return OPCODES::LOAD_ABSM;
+  if (val == "-|M()|") return OPCODES::LOAD_NABSM;
+
+  if (val == "MQ") return OPCODES::LOAD_MQ;
+  if (val == "MQM()") return OPCODES::LOAD_MQM;
+
+  return OPCODES::HALT;
+}
+
+OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val) {
+  if (opcode == BASE_OPCODE::ADD && val == "M()") return OPCODES::ADD_M;
+  if (opcode == BASE_OPCODE::ADD && val == "|M()|") return OPCODES::ADD_MABS;
+  
+  if (opcode == BASE_OPCODE::SUB && val == "M()") return OPCODES::SUB_M;
+  if (opcode == BASE_OPCODE::SUB && val == "|M()|") return OPCODES::SUB_MABS;
+
+  if (opcode == BASE_OPCODE::MUL && val == "M()") return OPCODES::MUL_M;
+  if (opcode == BASE_OPCODE::DIV && val == "M()") return OPCODES::DIV_M;
+
+  return OPCODES::HALT;
+}
+
+OPCODES getJumpOPCODE(std::string val) {
+  if (val == "M(0:19)") return OPCODES::JUMP_ML;
+  if (val == "M(20:39)") return OPCODES::JUMP_MR;
+
+  if (val == "+M(0:19)") return OPCODES::JUMP_PML;
+  if (val == "+M(20:39)") return OPCODES::JUMP_PMR;
+
+  return OPCODES::HALT;
+}
+
+OPCODES getStorOPCODE(std::string val) {
+  if (val == "M()") return OPCODES::STOR_M;
+
+  if (val == "M(0:19)") return OPCODES::STOR_ML;
+  if (val == "M(20:39)") return OPCODES::STOR_MR;
+
+  return OPCODES::HALT;
+}
+
+OPCODES convertBaseOPTOOP(Token opcode, Token arg) {
+  BASE_OPCODE op = strToBASEOPCODE(opcode.val);
+  switch (op) {
+  case BASE_OPCODE::LOAD:
+    return getLoadOPCODE(arg.val);
+    break;
+  
+  case BASE_OPCODE::ADD:
+    return getArithOPCODE(op,arg.val);
+    break;
+  
+  case BASE_OPCODE::SUB:
+   return getArithOPCODE(op,arg.val);
+    break;
+  
+  case BASE_OPCODE::MUL:
+    return getArithOPCODE(op,arg.val);
+    break;
+  
+  case BASE_OPCODE::DIV:
+    return getArithOPCODE(op,arg.val);
+    break;
+  
+  case BASE_OPCODE::JUMP:
+    return getJumpOPCODE(arg.val);
+    break;
+
+  case BASE_OPCODE::STOR:
+    return getStorOPCODE(arg.val);
+    break;
+
+  case BASE_OPCODE::LSH:
+    return OPCODES::LSH;
+    break;
+
+  case BASE_OPCODE::RSH:
+    return OPCODES::RSH;
+    break;
+
+  default:
+    return OPCODES::HALT;
+    break;
+  }
+}
+
+int64_t loadInstrIntoBytes(int32_t address, INSTRUCTION instr1 = {HALT},
+                      INSTRUCTION instr2 = {HALT})
+{
+  int64_t mem = ((static_cast<int64_t>(address) << 32)) | (instr1.opcode << 24) | (instr1.operand << 16) | (instr2.opcode << 8) | instr2.operand;
+  return mem;
+}
+
+std::string binaryString(int32_t n)
+{
+  // return std::to_string(n);
+  n = abs(n);
+  std::string symb = "012";
+  std::stack<char> s;
+  std::string bin = "";
+  int space = 0;
+  for (; n / 2 > 0; n /= 2) {
+    if (space == 4) {
+        s.push(' ');
+        space = 0;
+    }
+    ++space;
+    s.push(symb[n % 2]);
+      
+  }
+  s.push(symb[n % 2]);
+  for (; !s.empty(); s.pop())
+    bin += s.top();
+  return bin;
+}
+
+void convertTokensToInstructions(const std::vector<Token> &tokens) {
+  std::vector<int64_t> instrs;
+
+  int32_t addr;
+  INSTRUCTION instr1;
+  INSTRUCTION instr2;
+  bool load = false;
+
+  for (int i = 0; i< tokens.size(); ++i) {
+    if (load) {
+      instrs.push_back(loadInstrIntoBytes(addr,instr1,instr2));
+      load = false;
+    }
+    if (tokens[i].token == TOKEN_TYPE::LOC) {
+      addr = std::stoi(tokens[i].val);
+    }
+    if (tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token == TOKEN_TYPE::LOC) {
+      std::println("HERE1");
+      OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
+      
+      if (i+2 < tokens.size() && tokens[i+2].token == TOKEN_TYPE::MARG) {
+        std::println("VAL{}",std::stoi(tokens[i+2].val));
+        int8_t memadd = std::stoi(tokens[i+2].val);
+        instr1 = {op,memadd};
+        ++i;
+        continue;
+      }
+      instr1 = {op};
+      continue;
+    }
+    if (i+2 < tokens.size() && tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token != TOKEN_TYPE::LOC) {
+      std::println("HERE1");
+      OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
+      std::println("TYPE {}",(int)tokens[i+2].token);
+      if (tokens[i+1].token == TOKEN_TYPE::MARG) {
+        std::println("VAL{}",std::stoi(tokens[i+2].val));
+        int8_t memadd = std::stoi(tokens[i+2].val);
+        instr2 = {op,memadd};
+        ++i;
+        load = true;
+        continue;
+      }
+      instr2 = {op};
+      
+      load = true;
+      continue;
+    }
+  }
+
+  std::println("instr {}",instrs);
+  for (int32_t i: instrs) {
+    std::println("MEM {}",binaryString(i));
+  }
+
+}
+
 void convertTokensToBytes(const std::vector<Token> &tokens) {
   std::vector<Token> memTokens;
   std::vector<Token> instrs;
@@ -181,17 +366,7 @@ void convertTokensToBytes(const std::vector<Token> &tokens) {
     }
     instrs.push_back(tokens[i]);
   }
-  std::print("[");
-  for (const Token &t : memTokens) {
-    std::print("[{},{}]", (int)t.token, t.val);
-  }
-  std::println("]");
-
-  std::print("[");
-  for (const Token &t : instrs) {
-    std::print("[{},{}]", (int)t.token, t.val);
-  }
-  std::println("]");
+  convertTokensToInstructions(instrs);
 }
 
 int main() {
@@ -208,10 +383,10 @@ int main() {
       tokenize(tokens, splitLine(nString));
     }
   }
-  // std::print("[");
-  // for (const Token &t : tokens) {
-  //   std::print("[{},{}]", (int)t.token, t.val);
-  // }
-  // std::println("]");
+  std::print("[");
+  for (const Token &t : tokens) {
+    std::print("[{},{}]", (int)t.token, t.val);
+  }
+  std::println("]");
   convertTokensToBytes(tokens);
 }
