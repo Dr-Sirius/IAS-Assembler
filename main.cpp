@@ -6,7 +6,7 @@
 
 using std::ifstream;
 
-enum class TOKEN_TYPE { OPCODE, ARG, MARG, LOC, NONE };
+enum class TOKEN_TYPE { OPCODE, ARG, MARG, LOC, VAR, NONE };
 
 struct Token {
   TOKEN_TYPE token;
@@ -146,9 +146,14 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
   return {{TOKEN_TYPE::ARG, arg}, {TOKEN_TYPE::MARG, marg}};
 }
 
-std::vector<Token> tokenize(const std::vector<std::string> &inp) {
-  std::vector<Token> tokens;
+void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp) {
   tokens.push_back({TOKEN_TYPE::LOC, inp[0]});
+  if (inp.size() == 2) {
+    std::println("INP {}", inp);
+    tokens.push_back({TOKEN_TYPE::VAR, inp[1]});
+    return;
+  }
+
   for (int i = 1; i < inp.size(); ++i) {
     BASE_OPCODE code = strToBASEOPCODE(inp[i]);
     if (code == BASE_OPCODE::NONE) {
@@ -159,24 +164,54 @@ std::vector<Token> tokenize(const std::vector<std::string> &inp) {
       tokens.push_back({TOKEN_TYPE::OPCODE, inp[i]});
     }
   }
-  return tokens;
+}
+
+void convertTokensToBytes(const std::vector<Token> &tokens) {
+  std::vector<Token> memTokens;
+  std::vector<Token> instrs;
+
+  for (int i = 0; i < tokens.size(); ++i) {
+
+    if (tokens[i].token == TOKEN_TYPE::LOC &&
+        tokens[i + 1].token == TOKEN_TYPE::VAR) {
+      memTokens.push_back(tokens[i]);
+      memTokens.push_back(tokens[i + 1]);
+      ++i;
+      continue;
+    }
+    instrs.push_back(tokens[i]);
+  }
+  std::print("[");
+  for (const Token &t : memTokens) {
+    std::print("[{},{}]", (int)t.token, t.val);
+  }
+  std::println("]");
+
+  std::print("[");
+  for (const Token &t : instrs) {
+    std::print("[{},{}]", (int)t.token, t.val);
+  }
+  std::println("]");
 }
 
 int main() {
   ifstream file("example.txt");
   std::string st;
+  std::vector<Token> tokens;
+
   while (getline(file, st)) {
 
     std::string nString = removeComment(st);
     if (nString.length() > 0) {
       std::println("{}", nString);
       std::println("split {}", splitLine(nString));
-      std::vector<Token> tokens = tokenize(splitLine(nString));
-      std::print("[");
-      for (const Token &t : tokens) {
-        std::print("[{},{}]", (int)t.token, t.val);
-      }
-      std::println("]");
+      tokenize(tokens, splitLine(nString));
     }
   }
+  // std::print("[");
+  // for (const Token &t : tokens) {
+  //   std::print("[{},{}]", (int)t.token, t.val);
+  // }
+  // std::println("]");
+  convertTokensToBytes(tokens);
 }
