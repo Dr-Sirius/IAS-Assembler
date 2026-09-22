@@ -265,17 +265,17 @@ OPCODES convertBaseOPTOOP(Token opcode, Token arg) {
   }
 }
 
-int64_t loadInstrIntoBytes(int32_t address, INSTRUCTION instr1 = {HALT},
+int64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
                       INSTRUCTION instr2 = {HALT})
 {
-  int64_t mem = ((static_cast<int64_t>(address) << 32)) | (instr1.opcode << 24) | (instr1.operand << 16) | (instr2.opcode << 8) | instr2.operand;
+  int64_t mem = (static_cast<int64_t>(address) << 32) | (instr1.opcode << 24) | (instr1.operand << 16) | (instr2.opcode << 8) | instr2.operand;
   return mem;
 }
 
-std::string binaryString(int32_t n)
+std::string binaryString(int64_t n)
 {
   // return std::to_string(n);
-  n = abs(n);
+  
   std::string symb = "012";
   std::stack<char> s;
   std::string bin = "";
@@ -298,10 +298,12 @@ std::string binaryString(int32_t n)
 void convertTokensToInstructions(const std::vector<Token> &tokens) {
   std::vector<int64_t> instrs;
 
-  int32_t addr;
+  int8_t addr;
   INSTRUCTION instr1;
   INSTRUCTION instr2;
   bool load = false;
+
+  instrs.push_back(loadInstrIntoBytes(12,{LOAD_NABSM,10},{ADD_MABS,15}));
 
   for (int i = 0; i< tokens.size(); ++i) {
     if (load) {
@@ -312,11 +314,9 @@ void convertTokensToInstructions(const std::vector<Token> &tokens) {
       addr = std::stoi(tokens[i].val);
     }
     if (tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token == TOKEN_TYPE::LOC) {
-      std::println("HERE1");
       OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
       
       if (i+2 < tokens.size() && tokens[i+2].token == TOKEN_TYPE::MARG) {
-        std::println("VAL{}",std::stoi(tokens[i+2].val));
         int8_t memadd = std::stoi(tokens[i+2].val);
         instr1 = {op,memadd};
         ++i;
@@ -326,11 +326,8 @@ void convertTokensToInstructions(const std::vector<Token> &tokens) {
       continue;
     }
     if (i+2 < tokens.size() && tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token != TOKEN_TYPE::LOC) {
-      std::println("HERE1");
       OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
-      std::println("TYPE {}",(int)tokens[i+2].token);
       if (tokens[i+1].token == TOKEN_TYPE::MARG) {
-        std::println("VAL{}",std::stoi(tokens[i+2].val));
         int8_t memadd = std::stoi(tokens[i+2].val);
         instr2 = {op,memadd};
         ++i;
@@ -342,11 +339,6 @@ void convertTokensToInstructions(const std::vector<Token> &tokens) {
       load = true;
       continue;
     }
-  }
-
-  std::println("instr {}",instrs);
-  for (int32_t i: instrs) {
-    std::println("MEM {}",binaryString(i));
   }
 
 }
