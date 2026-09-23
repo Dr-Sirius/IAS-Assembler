@@ -358,6 +358,7 @@ std::vector<int64_t> convertTokensToInstructions(const std::vector<Token> &token
       instr1 = {op};
       continue;
     }
+
     if (!isOutOfBounds && tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token != TOKEN_TYPE::LOC) {
       OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
       if (tokens[i+2].token == TOKEN_TYPE::MARG) {
@@ -372,6 +373,23 @@ std::vector<int64_t> convertTokensToInstructions(const std::vector<Token> &token
       load = true;
       continue;
     }
+
+    if (tokens[i].token == TOKEN_TYPE::OPCODE && i+1 >= tokens.size()) {
+      OPCODES op = convertBaseOPTOOP(tokens[i],{});
+      instr2 = {op};
+      
+      load = true;
+    }
+    
+
+  }
+
+  if (load) {
+    instrs.push_back(loadInstrIntoBytes(addr, instr1, instr2));
+  }
+
+  for (const int64_t & i: instrs) {
+    std::println("MEM {}",binaryString(i));
   }
 
   return instrs;
@@ -414,17 +432,6 @@ std::string removeExtension(std::string file) {
   return str;
 }
 
-// std::vector<int64_t> readFile(const char* filename)
-// {
-//     std::ifstream file(filename, std::ios::binary);
-
-//     auto fileSize = std::filesystem::file_size(filename);
-
-//     std::vector<int64_t> fileData(fileSize);
-//     file.read((char*) &fileData[0], fileSize);
-//     return fileData;
-// }
-
 int main(int argc, char* argv[]) {
 
   if (argc == 1) {
@@ -455,12 +462,6 @@ int main(int argc, char* argv[]) {
   convertTokensToBytes(tokens, removeExtension(argv[1]));
 
   std::println("Assembling Success");
-
-  // std::vector<int64_t> mem = readFile("test.ii");
-
-  // for (const int64_t & i: mem) {
-  //   std::println("MEM {}",binaryString(i));
-  // }
 
   return 0;
 
