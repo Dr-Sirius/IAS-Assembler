@@ -7,6 +7,7 @@
 #include <stack>
 #include <algorithm>
 #include <filesystem>
+#include <cmath>
 
 using std::ifstream;
 
@@ -215,8 +216,8 @@ OPCODES getJumpOPCODE(std::string val) {
 OPCODES getStorOPCODE(std::string val) {
   if (val == "M()") return OPCODES::STOR_M;
 
-  if (val == "M(0:19)") return OPCODES::STOR_ML;
-  if (val == "M(20:39)") return OPCODES::STOR_MR;
+  if (val == "M(8:19)") return OPCODES::STOR_ML;
+  if (val == "M(28:39)") return OPCODES::STOR_MR;
 
   return OPCODES::HALT;
 }
@@ -266,18 +267,6 @@ OPCODES convertBaseOPTOOP(Token opcode, Token arg) {
   }
 }
 
-int64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
-                      INSTRUCTION instr2 = {HALT})
-{
-  int64_t mem = (static_cast<int64_t>(address) << 32) | (instr1.opcode << 24) | (instr1.operand << 16) | (instr2.opcode << 8) | instr2.operand;
-  return mem;
-}
-
-int64_t loadMemIntoBytes(int8_t address, int32_t var) {
-  int64_t mem = (static_cast<int64_t>(address) << 32) | var;
-  return mem;
-}
-
 std::string binaryString(int64_t n)
 {
   // return std::to_string(n);
@@ -292,25 +281,36 @@ std::string binaryString(int64_t n)
         space = 0;
     }
     ++space;
-    s.push(symb[n % 2]);
+    s.push(symb[std::abs(n % 2)]);
       
   }
-  s.push(symb[n % 2]);
+  s.push(symb[std::abs(n % 2)]);
   for (; !s.empty(); s.pop())
     bin += s.top();
   return bin;
 }
 
+uint64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
+                      INSTRUCTION instr2 = {HALT})
+{
+  uint64_t mem = (static_cast<int64_t>(address) << 32) | (instr1.opcode << 24) | (instr1.operand << 16) | (instr2.opcode << 8) | instr2.operand;
+  return mem;
+}
 
-void writeBytesToFile(std::vector<int64_t> bytes, std::string fileName, std::string extension) {
+uint64_t loadMemIntoBytes(int8_t address, int32_t var) {
+  uint64_t mem = (static_cast<uint64_t>(static_cast<uint8_t>(address)) << 32) | static_cast<uint32_t>(var);
+  return mem;
+}
+
+void writeBytesToFile(std::vector<uint64_t> bytes, std::string fileName, std::string extension) {
   std::ofstream output(fileName + "." + extension, std::ios::binary);
 
-  output.write((char*)&bytes[0], bytes.size() * sizeof(int64_t));
+  output.write((char*)&bytes[0], bytes.size() * sizeof(uint64_t));
   output.close();
 }
 
-std::vector<int64_t> convertTokensToMemory(const std::vector<Token> & tokens) {
-  std::vector<int64_t> mem;
+std::vector<uint64_t> convertTokensToMemory(const std::vector<Token> & tokens) {
+  std::vector<uint64_t> mem;
 
   int8_t addr;
   int32_t var;
@@ -324,8 +324,8 @@ std::vector<int64_t> convertTokensToMemory(const std::vector<Token> & tokens) {
   return mem;
 }
 
-std::vector<int64_t> convertTokensToInstructions(const std::vector<Token> &tokens) {
-  std::vector<int64_t> instrs;
+std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &tokens) {
+  std::vector<uint64_t> instrs;
 
   int8_t addr;
   INSTRUCTION instr1;
@@ -411,11 +411,11 @@ void convertTokensToBytes(const std::vector<Token> &tokens, std::string fileName
     }
     instrs.push_back(tokens[i]);
   }
-  std::vector<int64_t> instrBytes = convertTokensToInstructions(instrs);
-  std::vector<int64_t> memBytes = convertTokensToMemory(memTokens);
+  std::vector<uint64_t> instrBytes = convertTokensToInstructions(instrs);
+  std::vector<uint64_t> memBytes = convertTokensToMemory(memTokens);
 
-  writeBytesToFile(memBytes,fileName,"im");
-  writeBytesToFile(instrBytes,fileName,"ii");
+  writeBytesToFile(memBytes,fileName,"imm");
+  writeBytesToFile(instrBytes,fileName,"iim");
 }
 
 
