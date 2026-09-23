@@ -5,6 +5,8 @@
 #include <vector>
 #include <cstdint>
 #include <stack>
+#include <algorithm>
+#include <filesystem>
 
 using std::ifstream;
 
@@ -159,7 +161,6 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
 void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp) {
   tokens.push_back({TOKEN_TYPE::LOC, inp[0]});
   if (inp.size() == 2) {
-    std::println("INP {}", inp);
     tokens.push_back({TOKEN_TYPE::VAR, inp[1]});
     return;
   }
@@ -272,6 +273,11 @@ int64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
   return mem;
 }
 
+int64_t loadMemIntoBytes(int8_t address, int32_t var) {
+  int64_t mem = (static_cast<int64_t>(address) << 32) | var;
+  return mem;
+}
+
 std::string binaryString(int64_t n)
 {
   // return std::to_string(n);
@@ -295,7 +301,30 @@ std::string binaryString(int64_t n)
   return bin;
 }
 
-void convertTokensToInstructions(const std::vector<Token> &tokens) {
+
+void writeBytesToFile(std::vector<int64_t> bytes, std::string fileName, std::string extension) {
+  std::ofstream output(fileName + "." + extension, std::ios::binary);
+
+  output.write((char*)&bytes[0], bytes.size() * sizeof(int64_t));
+  output.close();
+}
+
+std::vector<int64_t> convertTokensToMemory(const std::vector<Token> & tokens) {
+  std::vector<int64_t> mem;
+
+  int8_t addr;
+  int32_t var;
+
+  for (size_t i = 0; i < tokens.size(); i+=2) {
+    addr = std::stoi(tokens[i].val);
+    var = std::stoi(tokens[i+1].val);
+    mem.push_back(loadMemIntoBytes(addr,var));
+  }
+
+  return mem;
+}
+
+std::vector<int64_t> convertTokensToInstructions(const std::vector<Token> &tokens) {
   std::vector<int64_t> instrs;
 
   int8_t addr;
@@ -303,20 +332,24 @@ void convertTokensToInstructions(const std::vector<Token> &tokens) {
   INSTRUCTION instr2;
   bool load = false;
 
-  instrs.push_back(loadInstrIntoBytes(12,{LOAD_NABSM,10},{ADD_MABS,15}));
+  for (size_t i = 0; i< tokens.size(); ++i) {
 
-  for (int i = 0; i< tokens.size(); ++i) {
+    bool isOutOfBounds = i+2 > tokens.size();
+
     if (load) {
       instrs.push_back(loadInstrIntoBytes(addr,instr1,instr2));
       load = false;
     }
+
     if (tokens[i].token == TOKEN_TYPE::LOC) {
       addr = std::stoi(tokens[i].val);
+      continue;
     }
+
     if (tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token == TOKEN_TYPE::LOC) {
       OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
       
-      if (i+2 < tokens.size() && tokens[i+2].token == TOKEN_TYPE::MARG) {
+      if (!isOutOfBounds && tokens[i+2].token == TOKEN_TYPE::MARG) {
         int8_t memadd = std::stoi(tokens[i+2].val);
         instr1 = {op,memadd};
         ++i;
@@ -325,9 +358,9 @@ void convertTokensToInstructions(const std::vector<Token> &tokens) {
       instr1 = {op};
       continue;
     }
-    if (i+2 < tokens.size() && tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token != TOKEN_TYPE::LOC) {
+    if (!isOutOfBounds && tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token != TOKEN_TYPE::LOC) {
       OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
-      if (tokens[i+1].token == TOKEN_TYPE::MARG) {
+      if (tokens[i+2].token == TOKEN_TYPE::MARG) {
         int8_t memadd = std::stoi(tokens[i+2].val);
         instr2 = {op,memadd};
         ++i;
@@ -341,9 +374,11 @@ void convertTokensToInstructions(const std::vector<Token> &tokens) {
     }
   }
 
+  return instrs;
+
 }
 
-void convertTokensToBytes(const std::vector<Token> &tokens) {
+void convertTokensToBytes(const std::vector<Token> &tokens, std::string fileName) {
   std::vector<Token> memTokens;
   std::vector<Token> instrs;
 
@@ -358,11 +393,53 @@ void convertTokensToBytes(const std::vector<Token> &tokens) {
     }
     instrs.push_back(tokens[i]);
   }
-  convertTokensToInstructions(instrs);
+  std::vector<int64_t> instrBytes = convertTokensToInstructions(instrs);
+  std::vector<int64_t> memBytes = convertTokensToMemory(memTokens);
+
+  writeBytesToFile(memBytes,fileName,"im");
+  writeBytesToFile(instrBytes,fileName,"ii");
 }
 
-int main() {
-  ifstream file("example.txt");
+
+std::string removeExtension(std::string file) {
+  std::string str;
+  for (const char& c: file) {
+    if (c == '.') {
+      break;
+    } else {
+      str += c;
+    }
+   
+  }
+  return str;
+}
+
+// std::vector<int64_t> readFile(const char* filename)
+// {
+//     std::ifstream file(filename, std::ios::binary);
+
+//     auto fileSize = std::filesystem::file_size(filename);
+
+//     std::vector<int64_t> fileData(fileSize);
+//     file.read((char*) &fileData[0], fileSize);
+//     return fileData;
+// }
+
+int main(int argc, char* argv[]) {
+
+  if (argc == 1) {
+    std::println("ERROR: no input files");
+    std::println("Expected: iasm <IAS source file>");
+    return 1;
+  }
+
+  if (argc > 2) {
+    std::println("ERROR: too many input files");
+    std::println("Expected: iasm <IAS source file>");
+    return 1;
+  }
+
+  ifstream file(argv[1]);
   std::string st;
   std::vector<Token> tokens;
 
@@ -370,15 +447,21 @@ int main() {
 
     std::string nString = removeComment(st);
     if (nString.length() > 0) {
-      std::println("{}", nString);
-      std::println("split {}", splitLine(nString));
       tokenize(tokens, splitLine(nString));
     }
   }
-  std::print("[");
-  for (const Token &t : tokens) {
-    std::print("[{},{}]", (int)t.token, t.val);
-  }
-  std::println("]");
-  convertTokensToBytes(tokens);
+
+  
+  convertTokensToBytes(tokens, removeExtension(argv[1]));
+
+  std::println("Assembling Success");
+
+  // std::vector<int64_t> mem = readFile("test.ii");
+
+  // for (const int64_t & i: mem) {
+  //   std::println("MEM {}",binaryString(i));
+  // }
+
+  return 0;
+
 }
