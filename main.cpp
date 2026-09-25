@@ -395,10 +395,6 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
     instrs.push_back(loadInstrIntoBytes(addr, instr1, instr2));
   }
 
-  for (const int64_t & i: instrs) {
-    std::println("MEM {}",binaryString(i));
-  }
-
   return instrs;
 
 }
@@ -466,11 +462,6 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  for (const Token& t: tokens) {
-    std::println("TOKEN_TYPE {}, VAL {}",(int)t.token,t.val);
-  }
-
-  
   convertTokensToBytes(tokens, removeExtension(argv[1]));
 
   std::println("Assembling Success");
