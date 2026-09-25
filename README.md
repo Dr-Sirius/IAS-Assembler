@@ -32,7 +32,7 @@ and two files should be created
 ### Running a program
 Running a program requires the [IAS-Emulator](https://github.com/Dr-Sirius/IAS-Emulator) 
 
-Example of running a program can be found [here](https://github.com/Dr-Sirius/IAS-Emulator/README.md#usage) 
+Example of running a program can be found [here](https://github.com/Dr-Sirius/IAS-Emulator/blob/main/README.md#usage) 
 
 
 ## Building
