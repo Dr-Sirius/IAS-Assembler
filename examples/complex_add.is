@@ -1,0 +1,33 @@
+000 1 ; constant 
+001 10 ; constant
+002 4 ; j - variable
+050 80 ; constant
+
+; array A
+070 -1
+071 -2
+072 -3
+073 -4
+074 -5
+; array B
+080 1
+081 2
+082 3
+083 4
+084 5
+
+; array C
+;060 
+;061 
+;062 
+;063 
+;064 
+
+003 LOAD M(84) ADD |M(74)| ; AC <- A[j], AC <- AC + |B[j]|
+004 STOR M(64) LOAD M(2) ; C[j] <- AC(A[j] + |B[j]|), AC <- j
+005 SUB M(0) JUMP +M(6,20:39) ; AC <- AC - 1, IF AC >= 0 goto right instr at 6 else continue
+006 HALT STOR M(2) ; stop program execution, j <- AC
+007 ADD M(50) STOR M(3,8:19)
+008 SUB M(1) STOR M(3,28:39)
+009 SUB M(1) STOR M(4,8:19)
+010 JUMP M(3,0:19)

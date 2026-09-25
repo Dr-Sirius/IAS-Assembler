@@ -175,7 +175,9 @@ void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp) {
     } else {
       tokens.push_back({TOKEN_TYPE::OPCODE, inp[i]});
     }
+    
   }
+
 }
 
 OPCODES getLoadOPCODE(std::string val) {
@@ -304,6 +306,10 @@ uint64_t loadMemIntoBytes(int8_t address, int32_t var) {
 
 void writeBytesToFile(std::vector<uint64_t> bytes, std::string fileName, std::string extension) {
   std::ofstream output(fileName + "." + extension, std::ios::binary);
+  if (!output.is_open()) {
+    std::println("FILE ERROR");
+    exit(1);
+  }
 
   output.write((char*)&bytes[0], bytes.size() * sizeof(uint64_t));
   output.close();
@@ -380,8 +386,9 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
       
       load = true;
     }
-    
-
+    if (i + 1 >= tokens.size() && !load) {
+      instrs.push_back(loadInstrIntoBytes(addr, instr1, instr2));
+    }
   }
 
   if (load) {
@@ -446,6 +453,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  
   ifstream file(argv[1]);
   std::string st;
   std::vector<Token> tokens;
@@ -456,6 +464,10 @@ int main(int argc, char* argv[]) {
     if (nString.length() > 0) {
       tokenize(tokens, splitLine(nString));
     }
+  }
+
+  for (const Token& t: tokens) {
+    std::println("TOKEN_TYPE {}, VAL {}",(int)t.token,t.val);
   }
 
   

@@ -1,0 +1,7 @@
+; C = A + B
+000 10 ; constant A
+001 20 ; constant B
+; 003 - address where C will be stored
+
+004 LOAD M(0) ADD M(1) ; Load A into AC then Add B with A value stored in AC
+005 STOR M(3) HALT ; Store result C into address 3 then stop the program
