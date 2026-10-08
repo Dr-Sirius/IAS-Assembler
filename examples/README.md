@@ -17,6 +17,8 @@
 | LOAD -M(X)     | 0000 0010   | AC ⟵ -M(X)       |
 | LOAD \|M(X)\|  | 0000 0011   | AC ⟵ \|M(X)\|    |
 | LOAD -\|M(X)\| | 0000 0100   | AC ⟵  -\|M(X)\|  |
+| LOAD MQ,M(X)   | 0000 1001   | MQ ⟵ M(X)        |
+| LOAD MQ        | 0000 1010   | AC ⟵ MQ          |
 | STOR M(X)      | 0010 0001   | M(X) ⟵ AC        |
 
 ### Arithmetic Instrs

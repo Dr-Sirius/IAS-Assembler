@@ -171,6 +171,7 @@ void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp) {
     if (code == BASE_OPCODE::NONE) {
       std::pair<Token, Token> args = getMemArg(inp[i]);
       tokens.push_back(args.first);
+      if (args.second.val == "" && args.second.token == TOKEN_TYPE::MARG) continue;
       tokens.push_back(args.second);
     } else {
       tokens.push_back({TOKEN_TYPE::OPCODE, inp[i]});
@@ -395,6 +396,10 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
     instrs.push_back(loadInstrIntoBytes(addr, instr1, instr2));
   }
 
+  for (const uint64_t& t: instrs) {
+    std::println("INSTR {}", binaryString(t));
+  }
+
   return instrs;
 
 }
@@ -459,6 +464,10 @@ int main(int argc, char* argv[]) {
     if (nString.length() > 0) {
       tokenize(tokens, splitLine(nString));
     }
+  }
+
+  for (const Token& t: tokens) {
+    std::println("TOKEN_TYPE {} VAL {}",(int)t.token,t.val);
   }
 
   convertTokensToBytes(tokens, removeExtension(argv[1]));
