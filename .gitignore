@@ -2,3 +2,4 @@ main
 iasm
 *.iim
 *.imm
+.clangd
