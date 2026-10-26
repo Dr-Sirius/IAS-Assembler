@@ -40,3 +40,7 @@ The program can be built by calling
 ```
 make
 ```
+
+## Disclaimers
+### Error Handling
+Currently the Assembler has no way of handling errors or issues within the provided source file.
