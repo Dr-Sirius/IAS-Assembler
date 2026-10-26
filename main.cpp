@@ -189,6 +189,7 @@ OPCODES getLoadOPCODE(std::string val) {
 
   if (val == "MQ") return OPCODES::LOAD_MQ;
   if (val == "MQM()") return OPCODES::LOAD_MQM;
+  std::println("\"LOAD {}\" IS NOT A VALID LOAD OPCODE",val);
 
   return OPCODES::HALT;
 }
@@ -196,12 +197,17 @@ OPCODES getLoadOPCODE(std::string val) {
 OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val) {
   if (opcode == BASE_OPCODE::ADD && val == "M()") return OPCODES::ADD_M;
   if (opcode == BASE_OPCODE::ADD && val == "|M()|") return OPCODES::ADD_MABS;
+  if (opcode == BASE_OPCODE::ADD) {std::println("\"ADD {}\" IS NOT A VALID ADD OPCODE",val);}
   
   if (opcode == BASE_OPCODE::SUB && val == "M()") return OPCODES::SUB_M;
   if (opcode == BASE_OPCODE::SUB && val == "|M()|") return OPCODES::SUB_MABS;
+  if (opcode == BASE_OPCODE::SUB) {std::println("\"SUB {}\" IS NOT A VALID SUB OPCODE",val);}
 
   if (opcode == BASE_OPCODE::MUL && val == "M()") return OPCODES::MUL_M;
+  if (opcode == BASE_OPCODE::MUL) {std::println("\"MUL {}\" IS NOT A VALID MUL OPCODE",val);}
+  
   if (opcode == BASE_OPCODE::DIV && val == "M()") return OPCODES::DIV_M;
+  if (opcode == BASE_OPCODE::DIV) {std::println("\"DIV {}\" IS NOT A VALID DIV OPCODE",val);}
 
   return OPCODES::HALT;
 }
@@ -212,7 +218,8 @@ OPCODES getJumpOPCODE(std::string val) {
 
   if (val == "+M(0:19)") return OPCODES::JUMP_PML;
   if (val == "+M(20:39)") return OPCODES::JUMP_PMR;
-
+  
+  std::println("\"JUMP {}\" IS NOT A VALID JUMP OPCODE",val);
   return OPCODES::HALT;
 }
 
@@ -221,6 +228,8 @@ OPCODES getStorOPCODE(std::string val) {
 
   if (val == "M(8:19)") return OPCODES::STOR_ML;
   if (val == "M(28:39)") return OPCODES::STOR_MR;
+  
+  std::println("\"STOR {}\" IS NOT A VALID STOR OPCODE",val);
 
   return OPCODES::HALT;
 }
@@ -396,9 +405,9 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
     instrs.push_back(loadInstrIntoBytes(addr, instr1, instr2));
   }
 
-  for (const uint64_t& t: instrs) {
-    std::println("INSTR {}", binaryString(t));
-  }
+  // for (const uint64_t& t: instrs) {
+    // std::println("INSTR {}", binaryString(t));
+  // }
 
   return instrs;
 
@@ -466,9 +475,9 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  for (const Token& t: tokens) {
-    std::println("TOKEN_TYPE {} VAL {}",(int)t.token,t.val);
-  }
+  // for (const Token& t: tokens) {
+    // std::println("TOKEN_TYPE {} VAL {}",(int)t.token,t.val);
+  // }
 
   convertTokensToBytes(tokens, removeExtension(argv[1]));
 

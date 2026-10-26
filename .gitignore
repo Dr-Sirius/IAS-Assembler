@@ -3,3 +3,5 @@ iasm
 *.iim
 *.imm
 .clangd
+examples/test.is
+examples/test.is
