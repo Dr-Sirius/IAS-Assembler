@@ -31,7 +31,7 @@ and two files should be created
 > `.imm` stands for IAS memory map & `iim` stands for IAS instruction map
 
 ### Assembling Errors
-The assembler using the `-warn-num` and/or `-warn-line` will output issues with the program
+The assembler using the `-warn-num` and/or `-warn-line` command line arguments will output issues with the program
 
 Assuming the errors are not critical, the program will assemble successfully.
 
