@@ -1,5 +1,9 @@
+; This is a program used simply for testing purposes
+; It DOES NOT run properly, which is apart of its intended usage
+; 
 000 1
 
+; test error/warning output with following incorrect OPCODES
 001 LOAD MG(10) ADD MG(0)
 
 005 LOAD MZ(5) STOR MM(55)
