@@ -1,4 +1,5 @@
 #include <bits/stdc++.h>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <print>
@@ -11,11 +12,17 @@
 
 using std::ifstream;
 
+bool WARN_NUM = false;
+bool WARN_LINE = false;
+
+size_t errorCount = 0;
+
 enum class TOKEN_TYPE { OPCODE, ARG, MARG, LOC, VAR, NONE };
 
 struct Token {
   TOKEN_TYPE token;
   std::string val;
+  int line = -1;
 };
 
 enum class BASE_OPCODE : int8_t {
@@ -159,7 +166,7 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
   return {{TOKEN_TYPE::ARG, arg}, {TOKEN_TYPE::MARG, marg}};
 }
 
-void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp) {
+void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp, int line) {
   tokens.push_back({TOKEN_TYPE::LOC, inp[0]});
   if (inp.size() == 2) {
     tokens.push_back({TOKEN_TYPE::VAR, inp[1]});
@@ -174,14 +181,14 @@ void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp) {
       if (args.second.val == "" && args.second.token == TOKEN_TYPE::MARG) continue;
       tokens.push_back(args.second);
     } else {
-      tokens.push_back({TOKEN_TYPE::OPCODE, inp[i]});
+      tokens.push_back({TOKEN_TYPE::OPCODE, inp[i],line});
     }
     
   }
 
 }
 
-OPCODES getLoadOPCODE(std::string val) {
+OPCODES getLoadOPCODE(std::string val,int line) {
   if (val == "M()") return OPCODES::LOAD_M;
   if (val == "-M()") return OPCODES::LOAD_NEGM;
   if (val == "|M()|") return OPCODES::LOAD_ABSM;
@@ -189,47 +196,51 @@ OPCODES getLoadOPCODE(std::string val) {
 
   if (val == "MQ") return OPCODES::LOAD_MQ;
   if (val == "MQM()") return OPCODES::LOAD_MQM;
-  std::println("\"LOAD {}\" IS NOT A VALID LOAD OPCODE",val);
-
+  if (WARN_LINE) std::println("LINE {}:  \"LOAD {}\" IS NOT A VALID LOAD OPCODE",line,val);
+  ++errorCount;
   return OPCODES::HALT;
 }
 
-OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val) {
+OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val, int line) {
   if (opcode == BASE_OPCODE::ADD && val == "M()") return OPCODES::ADD_M;
   if (opcode == BASE_OPCODE::ADD && val == "|M()|") return OPCODES::ADD_MABS;
-  if (opcode == BASE_OPCODE::ADD) {std::println("\"ADD {}\" IS NOT A VALID ADD OPCODE",val);}
+  if (opcode == BASE_OPCODE::ADD && WARN_LINE) {std::println("LINE {}:  \"ADD {}\" IS NOT A VALID ADD OPCODE",line,val);}
   
   if (opcode == BASE_OPCODE::SUB && val == "M()") return OPCODES::SUB_M;
   if (opcode == BASE_OPCODE::SUB && val == "|M()|") return OPCODES::SUB_MABS;
-  if (opcode == BASE_OPCODE::SUB) {std::println("\"SUB {}\" IS NOT A VALID SUB OPCODE",val);}
+  if (opcode == BASE_OPCODE::SUB && WARN_LINE) {std::println("LINE {}:  \"SUB {}\" IS NOT A VALID SUB OPCODE",line,val);}
 
   if (opcode == BASE_OPCODE::MUL && val == "M()") return OPCODES::MUL_M;
-  if (opcode == BASE_OPCODE::MUL) {std::println("\"MUL {}\" IS NOT A VALID MUL OPCODE",val);}
+  if (opcode == BASE_OPCODE::MUL && WARN_LINE) {std::println("LINE {}:  \"MUL {}\" IS NOT A VALID MUL OPCODE",line,val);}
   
   if (opcode == BASE_OPCODE::DIV && val == "M()") return OPCODES::DIV_M;
-  if (opcode == BASE_OPCODE::DIV) {std::println("\"DIV {}\" IS NOT A VALID DIV OPCODE",val);}
+  if (opcode == BASE_OPCODE::DIV && WARN_LINE) {std::println("LINE {}:  \"DIV {}\" IS NOT A VALID DIV OPCODE",line, val);}
+  ++errorCount;
 
   return OPCODES::HALT;
 }
 
-OPCODES getJumpOPCODE(std::string val) {
+OPCODES getJumpOPCODE(std::string val, int line) {
   if (val == "M(0:19)") return OPCODES::JUMP_ML;
   if (val == "M(20:39)") return OPCODES::JUMP_MR;
 
   if (val == "+M(0:19)") return OPCODES::JUMP_PML;
   if (val == "+M(20:39)") return OPCODES::JUMP_PMR;
   
-  std::println("\"JUMP {}\" IS NOT A VALID JUMP OPCODE",val);
+  if (WARN_LINE) std::println("LINE {}: \"JUMP {}\" IS NOT A VALID JUMP OPCODE",line,val);
+  ++errorCount;
+
   return OPCODES::HALT;
 }
 
-OPCODES getStorOPCODE(std::string val) {
+OPCODES getStorOPCODE(std::string val, int line) {
   if (val == "M()") return OPCODES::STOR_M;
 
   if (val == "M(8:19)") return OPCODES::STOR_ML;
   if (val == "M(28:39)") return OPCODES::STOR_MR;
   
-  std::println("\"STOR {}\" IS NOT A VALID STOR OPCODE",val);
+  if (WARN_LINE) std::println("LINE {}:  \"STOR {}\" IS NOT A VALID STOR OPCODE",line,val);
+  ++errorCount;
 
   return OPCODES::HALT;
 }
@@ -238,31 +249,31 @@ OPCODES convertBaseOPTOOP(Token opcode, Token arg) {
   BASE_OPCODE op = strToBASEOPCODE(opcode.val);
   switch (op) {
   case BASE_OPCODE::LOAD:
-    return getLoadOPCODE(arg.val);
+    return getLoadOPCODE(arg.val,opcode.line);
     break;
   
   case BASE_OPCODE::ADD:
-    return getArithOPCODE(op,arg.val);
+    return getArithOPCODE(op,arg.val,opcode.line);
     break;
   
   case BASE_OPCODE::SUB:
-   return getArithOPCODE(op,arg.val);
+   return getArithOPCODE(op,arg.val,opcode.line);
     break;
   
   case BASE_OPCODE::MUL:
-    return getArithOPCODE(op,arg.val);
+    return getArithOPCODE(op,arg.val,opcode.line);
     break;
   
   case BASE_OPCODE::DIV:
-    return getArithOPCODE(op,arg.val);
+    return getArithOPCODE(op,arg.val,opcode.line);
     break;
   
   case BASE_OPCODE::JUMP:
-    return getJumpOPCODE(arg.val);
+    return getJumpOPCODE(arg.val,opcode.line);
     break;
 
   case BASE_OPCODE::STOR:
-    return getStorOPCODE(arg.val);
+    return getStorOPCODE(arg.val,opcode.line);
     break;
 
   case BASE_OPCODE::LSH:
@@ -453,35 +464,92 @@ int main(int argc, char* argv[]) {
 
   if (argc == 1) {
     std::println("ERROR: no input files");
-    std::println("Expected: iasm <IAS source file>");
-    return 1;
-  }
-
-  if (argc > 2) {
-    std::println("ERROR: too many input files");
-    std::println("Expected: iasm <IAS source file>");
-    return 1;
+    std::println("Expected: iasm [options] <IAS source file>");
+    std::println(
+      "Options:\n -warn-num {:>50}\n -warn-line {:>56}",
+      "Output warning if program has multiple errors",
+      "Output invalid OPCODES and the line number in source"
+      );
+    return EXIT_FAILURE;
   }
   
-  ifstream file(argv[1]);
+  if (argc == 2 && !strcmp(argv[1],"-help")) {
+    std::println("Usage: iasm [options] <IAS source file>");
+      std::println(
+      "Options:\n -warn-num {:>50}\n -warn-line {:>56}",
+      "Output warning if program has multiple errors",
+      "Output invalid OPCODES and the line number in source"
+      );
+      return EXIT_SUCCESS;
+  }
+  
+  
+  for (size_t i = 1; i < argc-1; ++i) {
+    if (!strcmp(argv[i],"-help")) {
+      std::println("Usage: iasm [options] <IAS source file>");
+      std::println(
+      "Options:\n -warn-num {:>50}\n -warn-line {:>56}",
+      "Output warning if program has multiple errors",
+      "Output invalid OPCODES and the line number in source"
+      );
+      return EXIT_SUCCESS;
+    }
+    if (!strcmp(argv[i],"-warn-num")) {
+      WARN_NUM = true;
+      continue;
+    }
+    if (!strcmp(argv[i],"-warn-line")) {
+      WARN_LINE = true;
+      continue;
+    } 
+    if (std::filesystem::exists(argv[i])) {
+      std::println("ERROR: FILE: <IAS source file> must NOT come before arguments \nAssembler terminated",argv[i]);
+      return EXIT_FAILURE;
+    }
+    
+    std::println("ERROR: UNKOWN OPTION: \"{}\"\nAssembler terminated",argv[i]);
+    return EXIT_FAILURE;
+  } 
+
+  if (argc > 4) {
+    std::println("ERROR: too many args");
+    std::println("Expected: iasm [options] <IAS source file>");
+    std::println(
+      "Options:\n -warn-num {:>50}\n -warn-line {:>56}",
+      "Output warning if program has multiple errors",
+      "Output invalid OPCODES and the line number in source"
+      );
+    return EXIT_FAILURE;
+  }
+  
+  if (!std::filesystem::exists(argv[argc-1])) {
+    std::println("ERROR: FILE: \"{}\" is not a valid file\nAssembler terminated",argv[argc-1]);
+    return EXIT_FAILURE;
+  }
+  
+  ifstream file(argv[argc-1]);
   std::string st;
   std::vector<Token> tokens;
-
+  int lineNumber = 1;
   while (getline(file, st)) {
 
     std::string nString = removeComment(st);
     if (nString.length() > 0) {
-      tokenize(tokens, splitLine(nString));
+      tokenize(tokens, splitLine(nString),lineNumber);
     }
+    ++lineNumber;
   }
 
   // for (const Token& t: tokens) {
     // std::println("TOKEN_TYPE {} VAL {}",(int)t.token,t.val);
   // }
 
-  convertTokensToBytes(tokens, removeExtension(argv[1]));
-
-  std::println("Assembling Success");
+  convertTokensToBytes(tokens, removeExtension(argv[argc-1]));
+  
+  if (WARN_NUM && errorCount > 0) {
+    std::println("\033[31mWARNING:\033[34m program assembled with \033[31m{} \033[34merrors\nProgram may not run correctly!",errorCount);
+  }
+  std::println("\033[32mAssembling Success");
 
   return 0;
 

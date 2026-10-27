@@ -1,17 +1,18 @@
 # IAS-Assembler
 This is an Assembler for the Von Neumann IAS computer Instruction Set
 
-## Why?
+# Why?
 I created an <ins>[IAS-Emulator](https://github.com/Dr-Sirius/IAS-Emulator)</ins>, however the only means to write programs was by hand in the actual code of the program. As a solution to my suffering I built this assembler. The assembler takes a source file and converts it into binary files readable by the emulator. Making it much easier to write programs.
 
-## How do you use it?
-### Source File
+# How do you use it?
+## Source File
 Create a source file with a `.is` extension 
 > this is not required, it can be any extension.
 
 The syntax follows the [IAS instruction set architecture](examples/README.md#ias-instruction-set)
 > sample programs in the [examples](examples) directory
 
+## Assembling & Usage
 ### Assembling
 
 Assembling a program is as easy as running
@@ -29,18 +30,33 @@ and two files should be created
 
 > `.imm` stands for IAS memory map & `iim` stands for IAS instruction map
 
-### Running a program
+### Assembling Errors
+The assembler using the `-warn-num` and/or `-warn-line` will output issues with the program
+
+Assuming the errors are not critical, the program will assemble successfully.
+
+However, the assembled program may not behave correctly when ran using the [IAS-Emulator](https://github.com/Dr-Sirius/IAS-Emulator)
+
+### Usage
+The assembler has support for command line args with the following options
+| Option         | Description                                            |
+| :------------: | :---------------:                                      |
+| -warn-num      | Output warning if program has multiple errors          |
+| -warn-line     | Output invalid OPCODES and the line number in source   |
+
+Usage of the args looks like
+`Usage: iasm [options] <IAS source file>`
+
+## Running a program
 Running a program requires the [IAS-Emulator](https://github.com/Dr-Sirius/IAS-Emulator) 
 
 Example of running a program can be found [here](https://github.com/Dr-Sirius/IAS-Emulator/blob/main/README.md#usage) 
 
 
-## Building
+
+
+# Building
 The program can be built by calling
 ```
 make
 ```
-
-## Disclaimers
-### Error Handling
-Currently the Assembler has no way of handling errors or issues within the provided source file.
