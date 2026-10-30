@@ -5,15 +5,25 @@
 #include <print>
 #include <vector>
 #include <cstdint>
-#include <stack>
-#include <algorithm>
 #include <filesystem>
-#include <cmath>
+
 
 using std::ifstream;
 
 bool WARN_NUM = false;
 bool WARN_LINE = false;
+bool SHOW_INSTR = false;
+
+
+std::vector<std::string> errorBuffer;
+
+std::string options = std::format(
+      "Options:\n -help {:>33}\n -warn-num {:>50}\n -warn-line {:>56}\n -show-instr {:>32}",
+      "Display this information",
+      "Output warning if program has multiple errors",
+      "Output invalid OPCODES and the line number in source",
+      "Output instructions in binary"
+      );
 
 size_t errorCount = 0;
 
@@ -196,7 +206,7 @@ OPCODES getLoadOPCODE(std::string val,int line) {
 
   if (val == "MQ") return OPCODES::LOAD_MQ;
   if (val == "MQM()") return OPCODES::LOAD_MQM;
-  if (WARN_LINE) std::println("LINE {}:  \"LOAD {}\" IS NOT A VALID LOAD OPCODE",line,val);
+  if (WARN_LINE) errorBuffer.push_back(std::format("LINE {}:  \"LOAD {}\" IS NOT A VALID LOAD OPCODE",line,val));
   ++errorCount;
   return OPCODES::HALT;
 }
@@ -204,17 +214,17 @@ OPCODES getLoadOPCODE(std::string val,int line) {
 OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val, int line) {
   if (opcode == BASE_OPCODE::ADD && val == "M()") return OPCODES::ADD_M;
   if (opcode == BASE_OPCODE::ADD && val == "|M()|") return OPCODES::ADD_MABS;
-  if (opcode == BASE_OPCODE::ADD && WARN_LINE) {std::println("LINE {}:  \"ADD {}\" IS NOT A VALID ADD OPCODE",line,val);}
+  if (opcode == BASE_OPCODE::ADD && WARN_LINE) {errorBuffer.push_back(std::format("LINE {}:  \"ADD {}\" IS NOT A VALID ADD OPCODE",line,val));}
   
   if (opcode == BASE_OPCODE::SUB && val == "M()") return OPCODES::SUB_M;
   if (opcode == BASE_OPCODE::SUB && val == "|M()|") return OPCODES::SUB_MABS;
-  if (opcode == BASE_OPCODE::SUB && WARN_LINE) {std::println("LINE {}:  \"SUB {}\" IS NOT A VALID SUB OPCODE",line,val);}
+  if (opcode == BASE_OPCODE::SUB && WARN_LINE) {errorBuffer.push_back(std::format("LINE {}:  \"SUB {}\" IS NOT A VALID SUB OPCODE",line,val));}
 
   if (opcode == BASE_OPCODE::MUL && val == "M()") return OPCODES::MUL_M;
-  if (opcode == BASE_OPCODE::MUL && WARN_LINE) {std::println("LINE {}:  \"MUL {}\" IS NOT A VALID MUL OPCODE",line,val);}
+  if (opcode == BASE_OPCODE::MUL && WARN_LINE) {errorBuffer.push_back(std::format("LINE {}:  \"MUL {}\" IS NOT A VALID MUL OPCODE",line,val));}
   
   if (opcode == BASE_OPCODE::DIV && val == "M()") return OPCODES::DIV_M;
-  if (opcode == BASE_OPCODE::DIV && WARN_LINE) {std::println("LINE {}:  \"DIV {}\" IS NOT A VALID DIV OPCODE",line, val);}
+  if (opcode == BASE_OPCODE::DIV && WARN_LINE) {errorBuffer.push_back(std::format("LINE {}:  \"DIV {}\" IS NOT A VALID DIV OPCODE",line, val));}
   ++errorCount;
 
   return OPCODES::HALT;
@@ -227,7 +237,7 @@ OPCODES getJumpOPCODE(std::string val, int line) {
   if (val == "+M(0:19)") return OPCODES::JUMP_PML;
   if (val == "+M(20:39)") return OPCODES::JUMP_PMR;
   
-  if (WARN_LINE) std::println("LINE {}: \"JUMP {}\" IS NOT A VALID JUMP OPCODE",line,val);
+  if (WARN_LINE) errorBuffer.push_back(std::format("LINE {}: \"JUMP {}\" IS NOT A VALID JUMP OPCODE",line,val));
   ++errorCount;
 
   return OPCODES::HALT;
@@ -239,7 +249,7 @@ OPCODES getStorOPCODE(std::string val, int line) {
   if (val == "M(8:19)") return OPCODES::STOR_ML;
   if (val == "M(28:39)") return OPCODES::STOR_MR;
   
-  if (WARN_LINE) std::println("LINE {}:  \"STOR {}\" IS NOT A VALID STOR OPCODE",line,val);
+  if (WARN_LINE) errorBuffer.push_back(std::format("LINE {}:  \"STOR {}\" IS NOT A VALID STOR OPCODE",line,val));
   ++errorCount;
 
   return OPCODES::HALT;
@@ -290,27 +300,27 @@ OPCODES convertBaseOPTOOP(Token opcode, Token arg) {
   }
 }
 
-std::string binaryString(int64_t n)
-{
-  // return std::to_string(n);
+std::string binString(int32_t n) {
+
+  std::bitset<32> num(n);
+  std::string bin = num.to_string();
+  std::string nBin = "";
+  unsigned short c = 0;
   
-  std::string symb = "012";
-  std::stack<char> s;
-  std::string bin = "";
-  int space = 0;
-  for (; n / 2 > 0; n /= 2) {
-    if (space == 4) {
-        s.push(' ');
-        space = 0;
+  for (auto it = bin.begin();it != bin.end(); ++it) {
+    if (c == 4) {
+      nBin += " ";
+      c = 0;
     }
-    ++space;
-    s.push(symb[std::abs(n % 2)]);
-      
-  }
-  s.push(symb[std::abs(n % 2)]);
-  for (; !s.empty(); s.pop())
-    bin += s.top();
-  return bin;
+    
+    nBin += *it;
+    
+    ++c;
+    
+  }  
+  
+  
+  return nBin; 
 }
 
 uint64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
@@ -416,9 +426,12 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
     instrs.push_back(loadInstrIntoBytes(addr, instr1, instr2));
   }
 
-  // for (const uint64_t& t: instrs) {
-    // std::println("INSTR {}", binaryString(t));
-  // }
+  if (SHOW_INSTR) {
+    std::println("\nInstructions:");
+    for (const int64_t& t: instrs) {
+      std::println("\tINSTR: {}", binString(t));
+    }
+  }
 
   return instrs;
 
@@ -475,11 +488,7 @@ int main(int argc, char* argv[]) {
   
   if (argc == 2 && !strcmp(argv[1],"-help")) {
     std::println("Usage: iasm [options] <IAS source file>");
-      std::println(
-      "Options:\n -warn-num {:>50}\n -warn-line {:>56}",
-      "Output warning if program has multiple errors",
-      "Output invalid OPCODES and the line number in source"
-      );
+      std::println("{}",options);
       return EXIT_SUCCESS;
   }
   
@@ -487,11 +496,7 @@ int main(int argc, char* argv[]) {
   for (size_t i = 1; i < argc-1; ++i) {
     if (!strcmp(argv[i],"-help")) {
       std::println("Usage: iasm [options] <IAS source file>");
-      std::println(
-      "Options:\n -warn-num {:>50}\n -warn-line {:>56}",
-      "Output warning if program has multiple errors",
-      "Output invalid OPCODES and the line number in source"
-      );
+      std::println("{}",options);
       return EXIT_SUCCESS;
     }
     if (!strcmp(argv[i],"-warn-num")) {
@@ -502,6 +507,10 @@ int main(int argc, char* argv[]) {
       WARN_LINE = true;
       continue;
     } 
+    if (!strcmp(argv[i],"-show-instr")) {
+      SHOW_INSTR = true;
+      continue;
+    }
     if (std::filesystem::exists(argv[i])) {
       std::println("ERROR: FILE: <IAS source file> must NOT come before arguments \nAssembler terminated",argv[i]);
       return EXIT_FAILURE;
@@ -511,14 +520,10 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   } 
 
-  if (argc > 4) {
+  if (argc > 5) {
     std::println("ERROR: too many args");
     std::println("Expected: iasm [options] <IAS source file>");
-    std::println(
-      "Options:\n -warn-num {:>50}\n -warn-line {:>56}",
-      "Output warning if program has multiple errors",
-      "Output invalid OPCODES and the line number in source"
-      );
+    std::println("{}",options);
     return EXIT_FAILURE;
   }
   
@@ -540,16 +545,20 @@ int main(int argc, char* argv[]) {
     ++lineNumber;
   }
 
-  // for (const Token& t: tokens) {
-    // std::println("TOKEN_TYPE {} VAL {}",(int)t.token,t.val);
-  // }
-
   convertTokensToBytes(tokens, removeExtension(argv[argc-1]));
   
-  if (WARN_NUM && errorCount > 0) {
-    std::println("\033[31mWARNING:\033[34m program assembled with \033[31m{} \033[34merrors\nProgram may not run correctly!",errorCount);
+  if (WARN_LINE && errorCount > 0) {
+    std::println("\nErrors:");
+    for (std::string s: errorBuffer){
+      std::println("\t{}",s);
+    }
   }
-  std::println("\033[32mAssembling Success");
+  
+  if (WARN_NUM && errorCount > 0) {
+    std::println("\n\033[31mWARNING:\033[34m program assembled with \033[31m{} \033[34merrors\nProgram may not run correctly!",errorCount);
+  }
+  
+  std::println("\n\033[32mAssembling Success");
 
   return 0;
 
