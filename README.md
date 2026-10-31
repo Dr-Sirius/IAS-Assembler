@@ -55,8 +55,12 @@ Example of running a program can be found [here](https://github.com/Dr-Sirius/IA
 
 
 
+# Requirments
+- C++23 compatable compiler
+
 # Building
 The program can be built by calling
 ```
 make
 ```
+By default, the emulator is built with gcc
