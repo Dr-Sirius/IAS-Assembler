@@ -40,8 +40,8 @@ However, the assembled program may not behave correctly when ran using the [IAS-
 ### Usage
 The assembler has support for command line args with the following options
 | Option         | Description                                            |
-| :------------: | :---------------:                                      |
-| -help          | Displays options and usage for assembler
+| :------------  | :---------------                                       |
+| -help          | Displays options and usage for assembler               |
 | -warn-num      | Output warning if program has multiple errors          |
 | -warn-line     | Output invalid OPCODES and the line number in source   |
 | -show-instr    | Output instructions in binary                          |
