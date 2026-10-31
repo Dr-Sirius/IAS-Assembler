@@ -29,10 +29,20 @@ size_t errorCount = 0;
 
 enum class TOKEN_TYPE { OPCODE, ARG, MARG, LOC, VAR, NONE };
 
+
+/**
+ * Struct for holding Token information
+ *
+ * #### Members:
+ * `token`  - TOKEN_TYPE of Token
+ * `val`    - string value of Token
+ * `line`   - Line in source file where Token originates
+ */
 struct Token {
   TOKEN_TYPE token;
-  std::string val;
   int line = -1;
+  std::string val;
+ 
 };
 
 enum class BASE_OPCODE : int8_t {
@@ -96,6 +106,20 @@ struct INSTRUCTION {
 };
 
 
+/**
+ * @brief Converts string to a BASE_OPCODE enum
+ *
+ *
+ * @param str String to be converted to BASE_OPCODE
+ *
+ * @return BASE_OPCODE enum representation of str
+ *
+ * #### Usage:
+ * ```cpp
+ * BASE_OPCODE base = strToBASEOPCODE("LOAD"); // returns BASE_OPCODE::LOAD
+ * ```
+ *
+ **/
 BASE_OPCODE strToBASEOPCODE(std::string str) {
   if (str == "HALT") {
     return BASE_OPCODE::HALT;
@@ -130,6 +154,22 @@ BASE_OPCODE strToBASEOPCODE(std::string str) {
   return BASE_OPCODE::NONE;
 }
 
+
+
+/**
+ * @brief Removes comments from starting at ';' from string
+ *
+ *
+ * @param line Line desired for removing comments
+ * @return string containing no comments
+ *
+ * #### Usage:
+ * ```cpp
+   std::string line = "001 LOAD M(0) ADD M(2) ; A comment"
+ * std::string noComments = removeComment(line); // returns "001 LOAD M(0) ADD M(2) "
+ * ```
+ *
+ **/
 std::string removeComment(std::string line) {
   std::string nString;
   for (const char &c : line) {
@@ -140,6 +180,21 @@ std::string removeComment(std::string line) {
   return nString;
 }
 
+
+/**
+ * @brief Splits a string by space character
+ *
+ *
+ * @param line A const ref to the desired string to be split
+ * @return a vector of strings
+ *
+ * #### Usage:
+ * ```cpp
+   std::string line = "001 LOAD M(0) ADD M(2) ; A comment
+ * std::vector<std::string> split = splitLine(line); // returns {"001","LOAD","M(0)","ADD","M(2)"}
+ * ```
+ *
+ **/
 std::vector<std::string> splitLine(const std::string &line) {
 
   std::stringstream stream(line);
@@ -154,6 +209,25 @@ std::vector<std::string> splitLine(const std::string &line) {
   return split;
 }
 
+/**
+ * @brief Retrieves the memory arguments from a string as Tokens. The first token being the type, and the second being the val 
+ *
+ *
+ * @param str A const ref to the string containing the args
+ * @return a pair of tokens, first being the arg type and the second being the memory arg
+ *
+ * #### Usage:
+ * ```cpp
+   std::string marg = "M(13,20:39)"
+ * std::pair<Token,Token> margVal = getMemArg(marg); // returns Token{TOKEN_TYPE::ARG,"M(20:39)",-1} & Token{TOKEN_TYPE::MARG,"13",-1}
+ * ```
+ * Another example
+ * ```cpp
+ * std::string marg = "|M(13)|"
+ * std::pair<Token,Token> margVal = getMemArg(marg); // returns Token{TOKEN_TYPE::ARG,"|M()|",-1} & Token{TOKEN_TYPE::MARG,"13",-1}
+ * ```
+ *
+ **/
 std::pair<Token, Token> getMemArg(const std::string &str) {
 
   std::string arg;
@@ -173,13 +247,48 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
     }
   }
 
-  return {{TOKEN_TYPE::ARG, arg}, {TOKEN_TYPE::MARG, marg}};
+  return {{.token=TOKEN_TYPE::ARG,.val = arg}, {.token=TOKEN_TYPE::MARG, .val=marg}};
 }
 
+
+/**
+ * @brief Converts a line into Tokens and adds them to a provided vector of Tokens
+ *
+ *
+ * @param tokens A ref to a vector of Tokens for the new tokens to be added to
+ * @param inp a const ref to a vector of Strings to be tokenized
+ * @param line an int representing the line number in the source file where the tokens are from
+ *
+ * #### Usage:
+ * ```cpp
+ * std::vector<Token> tokens;
+ * int lineNumber = 1;
+ * while (getline(file, st)) {
+ *
+ *   std::string nString = removeComment(st);
+ *  if (nString.length() > 0) {
+ *     tokenize(tokens, splitLine(nString),lineNumber);
+ *   }
+ *   ++lineNumber;
+ * }
+ * ```
+ *  the vector of Tokens after running with a source file of `"001 LOAD M(0) ADD M(2)"` 
+  ```cpp
+  {
+  Token{TOKEN_TYPE::LOC,"1",1},
+  Token{TOKEN_TYPE::OPCODE,"LOAD",1},
+  Token{TOKEN_TYPE::ARG,"M()",1},
+  Token{TOKEN_TYPE::MARG,"0",1},
+  Token{TOKEN_TYPE::OPCODE,"ADD",1},
+  Token{TOKEN_TYPE::ARG,"M()",1},
+  Token{TOKEN_TYPE::MARG,"2",1}
+  }
+  ```
+ **/
 void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp, int line) {
-  tokens.push_back({TOKEN_TYPE::LOC, inp[0]});
+  tokens.push_back({.token=TOKEN_TYPE::LOC, .val=inp[0]});
   if (inp.size() == 2) {
-    tokens.push_back({TOKEN_TYPE::VAR, inp[1]});
+    tokens.push_back({.token=TOKEN_TYPE::VAR, .val=inp[1]});
     return;
   }
 
@@ -191,14 +300,29 @@ void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp, i
       if (args.second.val == "" && args.second.token == TOKEN_TYPE::MARG) continue;
       tokens.push_back(args.second);
     } else {
-      tokens.push_back({TOKEN_TYPE::OPCODE, inp[i],line});
+      tokens.push_back({.token=TOKEN_TYPE::OPCODE,.line=line,.val=inp[i]});
     }
     
   }
 
 }
 
-OPCODES getLoadOPCODE(std::string val,int line) {
+
+/**
+ * @brief Retrieves the LOAD OPCODES enum that corresponds with the string
+ *
+ *
+ * @param val A const ref to the string containing a LOAD OPCODE
+   @param line an int where the string/instr is found at
+ * @return a LOAD OPCODES
+ *
+ * #### Usage:
+ * ```cpp
+   std::string str = "M()";
+ * OPCODES opcode = getLoadOPCODE(str,0); // returns OPCODES::LOAD_M
+ * ```
+ **/
+OPCODES getLoadOPCODE(const std::string& val,int line) {
   if (val == "M()") return OPCODES::LOAD_M;
   if (val == "-M()") return OPCODES::LOAD_NEGM;
   if (val == "|M()|") return OPCODES::LOAD_ABSM;
@@ -211,6 +335,21 @@ OPCODES getLoadOPCODE(std::string val,int line) {
   return OPCODES::HALT;
 }
 
+/**
+ * @brief Retrieves the Arithmetic OPCODES enum that corresponds with the BASE_OPCODE and string
+ *
+ * @param opcode a base opcode
+ * @param val A const ref to the string containing an Arithmetic OPCODE
+   @param line an int where the string/instr is found at
+ * @return an Arithmetic OPCODES
+ *
+ * #### Usage:
+ * ```cpp
+   std::string str = "M()";
+   BASE_OPCODE op = BASE_OPCODE::ADD;
+ * OPCODES opcode = getArithOPCODE(op,str,0); // returns OPCODES::ADD_M
+ * ```
+ **/
 OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val, int line) {
   if (opcode == BASE_OPCODE::ADD && val == "M()") return OPCODES::ADD_M;
   if (opcode == BASE_OPCODE::ADD && val == "|M()|") return OPCODES::ADD_MABS;
@@ -230,6 +369,19 @@ OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val, int line) {
   return OPCODES::HALT;
 }
 
+/**
+ * @brief Retrieves the Jump OPCODES enum that corresponds with the BASE_OPCODE and string
+ *
+ * @param val A const ref to the string containing a Jump OPCODE
+   @param line an int where the string/instr is found at
+ * @return an Jump OPCODES
+ *
+ * #### Usage:
+ * ```cpp
+   std::string str = "+M(0:19)";
+ * OPCODES opcode = getJumpOPCODE(str,0); // returns OPCODES::JUMP_PML
+ * ```
+ **/
 OPCODES getJumpOPCODE(std::string val, int line) {
   if (val == "M(0:19)") return OPCODES::JUMP_ML;
   if (val == "M(20:39)") return OPCODES::JUMP_MR;
@@ -243,6 +395,21 @@ OPCODES getJumpOPCODE(std::string val, int line) {
   return OPCODES::HALT;
 }
 
+
+/**
+ * @brief Retrieves the STOR OPCODES enum that corresponds with the string
+ *
+ *
+ * @param val A const ref to the string containing a STOR OPCODE
+   @param line an int where the string/instr is found at
+ * @return a STOR OPCODES
+ *
+ * #### Usage:
+ * ```cpp
+   std::string str = "M()";
+ * OPCODES opcode = getStorOPCODE(str,0); // returns OPCODES::STOR_M
+ * ```
+ **/
 OPCODES getStorOPCODE(std::string val, int line) {
   if (val == "M()") return OPCODES::STOR_M;
 
@@ -255,6 +422,22 @@ OPCODES getStorOPCODE(std::string val, int line) {
   return OPCODES::HALT;
 }
 
+
+/**
+ * @brief Retrieves the OPCODES enum that corresponds with provided Tokens
+ *
+ *
+ * @param opcode An opcode Token
+   @param arg A token containing the arg for the opcode
+ * @return an OPCODES
+ *
+ * #### Usage:
+ * ```cpp
+   Token op = Token{TOKEN_TYPE::OPCODE,"ADD",1};
+   Token arg = Token{TOKEN_TYPE::ARG, "M()",1};
+ * OPCODES opcode = convertBaseOPTOOP(op,arg); // returns OPCODES::ADD_M
+ * ```
+ **/
 OPCODES convertBaseOPTOOP(Token opcode, Token arg) {
   BASE_OPCODE op = strToBASEOPCODE(opcode.val);
   switch (op) {
@@ -300,6 +483,18 @@ OPCODES convertBaseOPTOOP(Token opcode, Token arg) {
   }
 }
 
+/**
+ * @brief Converts number into binary string representation
+ *
+ *
+ * @param n Number to be converted to binary string
+ * @return 32-bit binary string representation of n
+ *
+ * #### Usage:
+ * ```cpp
+ * std::string bin = binString(11); // returns "0000 0000 0000 1011"
+ * ```
+ **/
 std::string binString(int32_t n) {
 
   std::bitset<32> num(n);
@@ -323,6 +518,24 @@ std::string binString(int32_t n) {
   return nBin; 
 }
 
+
+/**
+ * @brief Loads given Instructions into 8 bytes (64-bit)
+ *
+ * @param address Memory address to load instructions
+ * @param instr1 Instruction to be loaded into left hand side of memory block,
+ * Defaults to HALT instruction
+ * @param instr2 Instruction to be loaded into right hand side of memory block,
+ * Defaults to HALT instruction
+ *
+ * #### Usage:
+ * ```cpp
+ * INSTRUCTION leftInstr =  {LOAD_M,0};
+ * INSTRUCTION rightInstr = {ADD_M,10};
+ * loadInstrIntoBytes(1,leftInstr,rightInstr); //returns uint64_t == 0000 0000 0000 0000 0000 0001 0000 0001 0000 0000 0101 0000 1010
+ * ```
+ *
+ **/
 uint64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
                       INSTRUCTION instr2 = {HALT})
 {
@@ -330,11 +543,37 @@ uint64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
   return mem;
 }
 
+/**
+ * @brief Loads given Memory into 8 bytes (64-bit)
+ *
+ * @param address Memory address to load instructions
+ * @param var value in memory to be loaded into bottom 32-bits memory
+ *
+ * #### Usage:
+ * ```cpp
+ * loadMemIntoBytes(1,105); //returns uint64_t == 0000 0000 0000 0000 0000 0001 0000 0000 0000 0000 00000 0000 0011 0100
+ * ```
+ *
+ **/
 uint64_t loadMemIntoBytes(int8_t address, int32_t var) {
   uint64_t mem = (static_cast<uint64_t>(static_cast<uint8_t>(address)) << 32) | static_cast<uint32_t>(var);
   return mem;
 }
 
+/**
+ * @brief Writes provided vector of unsigned 64-bits to binary file created with given name and extension
+ *
+ * @param bytes vector of bytes to be written to file
+ * @param fileName string containing name of desired file
+ * @param extension string containing the desired extension for the file
+ *
+ * #### Usage:
+ * ```cpp
+ * std::vector<uint64_t> vecOfBytes = ......;
+ * writeBytesToFile(vecOfBytes, "hello",".bin"); // produces hello.bin containing data from vecOfBytes
+ * ```
+ *
+ **/
 void writeBytesToFile(std::vector<uint64_t> bytes, std::string fileName, std::string extension) {
   std::ofstream output(fileName + "." + extension, std::ios::binary);
   if (!output.is_open()) {
@@ -346,6 +585,23 @@ void writeBytesToFile(std::vector<uint64_t> bytes, std::string fileName, std::st
   output.close();
 }
 
+/**
+ * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes in the IAS memory map format
+ * 
+ *
+ * Is a wrapper around: 
+ * ```cpp 
+ * loadMemIntoBytes
+ * ```
+ *
+ * @param tokens vector of Tokens to be converted
+ * #### Usage:
+ * ```cpp
+ * std::vector<Tokens> tokens = .....;
+ * convertTokensToMemory(tokens); // produces a vector of uint64_t
+ * ```
+ *
+ **/
 std::vector<uint64_t> convertTokensToMemory(const std::vector<Token> & tokens) {
   std::vector<uint64_t> mem;
 
@@ -361,6 +617,22 @@ std::vector<uint64_t> convertTokensToMemory(const std::vector<Token> & tokens) {
   return mem;
 }
 
+/**
+ * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes in the IAS instruction map format
+ *
+ * Is a wrapper around: 
+ * ```cpp 
+ * loadInstrIntoBytes
+ * ```
+ *
+ * @param tokens vector of Tokens to be converted
+ * #### Usage:
+ * ```cpp
+ * std::vector<Tokens> tokens = .....;
+ * convertTokensToInstructions(tokens); // produces a vector of uint64_t
+ * ```
+ *
+ **/
 std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &tokens) {
   std::vector<uint64_t> instrs;
 
@@ -437,6 +709,26 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
 
 }
 
+
+/**
+ * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes and writes them to appropriate IAS map file. 
+ * Memory tokens get written to a bin file with the provided  with ```.imm``` extension. 
+ * Instruction tokens get written to a bin file with the provided  with ```.iim``` extension
+ *
+ * Is a wrapper around: 
+ * ```cpp 
+ * convertTokensToMemory && convertTokensToInstructions
+ * ```
+ *
+ * @param tokens vector of Tokens to be converted and written to file
+ * @param fileName string containing desired name for ```.imm``` and ```.iim``` files
+ * #### Usage:
+ * ```cpp
+ * std::vector<Tokens> tokens = ......;
+ * convertTokensToBytes(tokens); // t
+ * ```
+ *
+ **/
 void convertTokensToBytes(const std::vector<Token> &tokens, std::string fileName) {
   std::vector<Token> memTokens;
   std::vector<Token> instrs;
@@ -459,7 +751,17 @@ void convertTokensToBytes(const std::vector<Token> &tokens, std::string fileName
   writeBytesToFile(instrBytes,fileName,"iim");
 }
 
-
+/**
+ * @brief Removes the extension from a provided file string
+ *
+ * @param file string containing the file name + extension
+ * #### Usage:
+ * ```cpp
+ * std::string file = "hello.txt";
+ * removeExtension(file); // returns "hello"
+ * ```
+ *
+ **/
 std::string removeExtension(std::string file) {
   std::string str;
   for (const char& c: file) {
@@ -559,6 +861,7 @@ int main(int argc, char* argv[]) {
   }
   
   std::println("\n\033[32mAssembling Success");
+
 
   return 0;
 
