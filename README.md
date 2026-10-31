@@ -63,4 +63,4 @@ The program can be built by calling
 ```
 make
 ```
-By default, the emulator is built with gcc
+By default, the assembler is built with gcc
