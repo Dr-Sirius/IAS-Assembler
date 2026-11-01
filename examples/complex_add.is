@@ -26,9 +26,9 @@
 004 STOR M(64) LOAD M(2) ; C[j] <- AC(A[j] + |B[j]|), AC <- j
 005 SUB M(0) JUMP +M(6,20:39) ; AC <- AC - 1, IF AC >= 0 goto right instr at 6 else continue
 006 HALT STOR M(2) ; stop program execution, j <- AC
-007 LOAD MQ,M(1) MUL M(1)
-008 LOAD MQ SUB M(1)
-009 ADD M(2) SUB M(1)   
-010 STOR M(3,8:19) SUB M(1) 
-011 STOR M(3,28:39) SUB M(1) 
-012 STOR M(4,8:19) JUMP M(3,0:19)
+007 LOAD MQ,M(1) MUL M(1) ; MQ <- 10, MQ <- MQ * 10
+008 LOAD MQ SUB M(1) ; AC <- MQ, AC <- AC - 1
+009 ADD M(2) SUB M(1) ; AC <- AC + j, AC <- AC - 10
+010 STOR M(3,8:19) SUB M(1) ; modify addr in LOAD with AC, AC <- AC - 1
+011 STOR M(3,28:39) SUB M(1) ; modify addr in ADD with AC, AC <- AC - 1
+012 STOR M(4,8:19) JUMP M(3,0:19) ; modify addr in STOR with AC, Jump to LOAD
