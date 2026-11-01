@@ -1,0 +1,35 @@
+; Bottom Up space optimized Approach (Linear Fib algorithm)
+; Hits TMAX and overflows at a point
+000 0 ; curr
+001 1 ; prev1
+002 0 ; prev2
+003 8 ; n
+004 1 ; decr
+
+; Decr n by 2, so that 1 or 0 is < 0, jump to MEM ADDR 15
+005 LOAD M(3) SUB M(4) 
+006 SUB M(4) JUMP M(15,0:19)
+
+; Load n then decr by 2, then Stor change to n
+; This is so we iterate in the range of [n-1,0)
+007 LOAD M(3) SUB M(4)
+008 SUB M(4) STOR M(3)
+
+; Load prev1 and Add prev2 together, then Stor in curr
+; Then Load prev1 into AC
+009 LOAD M(1) ADD M(2)
+010 STOR M(0) LOAD M(1)
+
+; Stor prev1 in prev2, Then Load curr into AC
+; Stor curr in prev1
+011 STOR M(2) LOAD M(0)
+012 STOR M(1) LOAD M(3)
+
+; Decr n by 1, Stor result, then jump to MEM ADDR 9 if n >= 0
+013 SUB M(4) STOR M(3)
+014 JUMP +M(9,0:19) HALT
+
+; If n-2 >= 0 jump to MEM ADDR 7
+; Else Load n into and Stor in curr (M(0))
+015 JUMP +M(7,0:19) LOAD M(3) 
+016 STOR M(0) HALT

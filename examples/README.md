@@ -6,6 +6,10 @@
 - [complex_add](complex_add.is)
     - adds all the elements of arrays A & B together and stores the results in array C 
     - `C[j] = A[j] + |B[j]|, for j = 4..0`
+- [fib](fib.is)
+    - Finds the nth fibonacci number using an iterative algorithm, results stored in mem address 0
+    - `fib(n)`
+    - `fib(8) = 21`
 
 ## IAS Instruction Set
 
