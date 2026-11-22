@@ -1,12 +1,13 @@
 #include <bits/stdc++.h>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <print>
+#include <string>
 #include <vector>
-#include <cstdint>
-#include <filesystem>
-
 
 using std::ifstream;
 
@@ -14,21 +15,20 @@ bool WARN_NUM = false;
 bool WARN_LINE = false;
 bool SHOW_INSTR = false;
 
-
 std::vector<std::string> errorBuffer;
 
 std::string options = std::format(
-      "Options:\n -help {:>33}\n -warn-num {:>50}\n -warn-line {:>56}\n -show-instr {:>32}",
-      "Display this information",
-      "Output warning if program has multiple errors",
-      "Output invalid OPCODES and the line number in source",
-      "Output instructions in binary"
-      );
+    "Options:\n -help {:>33}\n -warn-num {:>50}\n -warn-line {:>56}\n "
+    "-show-instr {:>32}",
+    "Display this information", "Output warning if program has multiple errors",
+    "Output invalid OPCODES and the line number in source",
+    "Output instructions in binary");
 
 size_t errorCount = 0;
 
 enum class TOKEN_TYPE { OPCODE, ARG, MARG, LOC, VAR, NONE };
 
+enum class NTOKEN_TYPE { OPCODE, VAR, NONE };
 
 /**
  * Struct for holding Token information
@@ -42,7 +42,6 @@ struct Token {
   TOKEN_TYPE token;
   int line = -1;
   std::string val;
- 
 };
 
 enum class BASE_OPCODE : int8_t {
@@ -100,11 +99,18 @@ enum OPCODES : int8_t {
   STOR_M = 0b00100001, // 33 - Store AC at M
 };
 
+struct NToken {
+  NTOKEN_TYPE type;
+  int32_t val;
+  int32_t loc;
+  int32_t line = -1;
+  OPCODES op;
+};
+
 struct INSTRUCTION {
   OPCODES opcode;
   int8_t operand = 0b0;
 };
-
 
 /**
  * @brief Converts string to a BASE_OPCODE enum
@@ -154,8 +160,6 @@ BASE_OPCODE strToBASEOPCODE(std::string str) {
   return BASE_OPCODE::NONE;
 }
 
-
-
 /**
  * @brief Removes comments from starting at ';' from string
  *
@@ -166,7 +170,8 @@ BASE_OPCODE strToBASEOPCODE(std::string str) {
  * #### Usage:
  * ```cpp
    std::string line = "001 LOAD M(0) ADD M(2) ; A comment"
- * std::string noComments = removeComment(line); // returns "001 LOAD M(0) ADD M(2) "
+ * std::string noComments = removeComment(line); // returns "001 LOAD M(0) ADD
+ M(2) "
  * ```
  *
  **/
@@ -180,7 +185,6 @@ std::string removeComment(std::string line) {
   return nString;
 }
 
-
 /**
  * @brief Splits a string by space character
  *
@@ -191,7 +195,8 @@ std::string removeComment(std::string line) {
  * #### Usage:
  * ```cpp
    std::string line = "001 LOAD M(0) ADD M(2) ; A comment
- * std::vector<std::string> split = splitLine(line); // returns {"001","LOAD","M(0)","ADD","M(2)"}
+ * std::vector<std::string> split = splitLine(line); // returns
+ {"001","LOAD","M(0)","ADD","M(2)"}
  * ```
  *
  **/
@@ -210,21 +215,25 @@ std::vector<std::string> splitLine(const std::string &line) {
 }
 
 /**
- * @brief Retrieves the memory arguments from a string as Tokens. The first token being the type, and the second being the val 
+ * @brief Retrieves the memory arguments from a string as Tokens. The first
+ token being the type, and the second being the val
  *
  *
  * @param str A const ref to the string containing the args
- * @return a pair of tokens, first being the arg type and the second being the memory arg
+ * @return a pair of tokens, first being the arg type and the second being the
+ memory arg
  *
  * #### Usage:
  * ```cpp
    std::string marg = "M(13,20:39)"
- * std::pair<Token,Token> margVal = getMemArg(marg); // returns Token{TOKEN_TYPE::ARG,"M(20:39)",-1} & Token{TOKEN_TYPE::MARG,"13",-1}
+ * std::pair<Token,Token> margVal = getMemArg(marg); // returns
+ Token{TOKEN_TYPE::ARG,"M(20:39)",-1} & Token{TOKEN_TYPE::MARG,"13",-1}
  * ```
  * Another example
  * ```cpp
  * std::string marg = "|M(13)|"
- * std::pair<Token,Token> margVal = getMemArg(marg); // returns Token{TOKEN_TYPE::ARG,"|M()|",-1} & Token{TOKEN_TYPE::MARG,"13",-1}
+ * std::pair<Token,Token> margVal = getMemArg(marg); // returns
+ Token{TOKEN_TYPE::ARG,"|M()|",-1} & Token{TOKEN_TYPE::MARG,"13",-1}
  * ```
  *
  **/
@@ -237,27 +246,52 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
 
   for (int c = 0; c < str.length(); ++c) {
     if (isdigit(str[c]) && !stopDigits) {
-      if (str[c+1]==',') {
+      if (str[c + 1] == ',') {
         stopDigits = true;
       }
       marg += str[c];
     } else {
-      if (str[c] == ',') continue;
+      if (str[c] == ',')
+        continue;
       arg += str[c];
     }
   }
 
-  return {{.token=TOKEN_TYPE::ARG,.val = arg}, {.token=TOKEN_TYPE::MARG, .val=marg}};
+  return {{.token = TOKEN_TYPE::ARG, .val = arg},
+          {.token = TOKEN_TYPE::MARG, .val = marg}};
 }
 
+std::pair<std::string, int32_t> getMarg(const std::string &str) {
+  std::string arg;
+  std::string marg;
+
+  bool stopDigits = false;
+
+  for (int c = 0; c < str.length(); ++c) {
+    if (isdigit(str[c]) && !stopDigits) {
+      if (str[c + 1] == ',') {
+        stopDigits = true;
+      }
+      marg += str[c];
+    } else {
+      if (str[c] == ',')
+        continue;
+      arg += str[c];
+    }
+  }
+
+  return {arg, std::stoi(marg)};
+}
 
 /**
- * @brief Converts a line into Tokens and adds them to a provided vector of Tokens
+ * @brief Converts a line into Tokens and adds them to a provided vector of
+ Tokens
  *
  *
  * @param tokens A ref to a vector of Tokens for the new tokens to be added to
  * @param inp a const ref to a vector of Strings to be tokenized
- * @param line an int representing the line number in the source file where the tokens are from
+ * @param line an int representing the line number in the source file where the
+ tokens are from
  *
  * #### Usage:
  * ```cpp
@@ -272,7 +306,8 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
  *   ++lineNumber;
  * }
  * ```
- *  the vector of Tokens after running with a source file of `"001 LOAD M(0) ADD M(2)"` 
+ *  the vector of Tokens after running with a source file of `"001 LOAD M(0) ADD
+ M(2)"`
   ```cpp
   {
   Token{TOKEN_TYPE::LOC,"1",1},
@@ -285,10 +320,11 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
   }
   ```
  **/
-void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp, int line) {
-  tokens.push_back({.token=TOKEN_TYPE::LOC, .val=inp[0]});
+void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp,
+              int line) {
+  tokens.push_back({.token = TOKEN_TYPE::LOC, .val = inp[0]});
   if (inp.size() == 2) {
-    tokens.push_back({.token=TOKEN_TYPE::VAR, .val=inp[1]});
+    tokens.push_back({.token = TOKEN_TYPE::VAR, .val = inp[1]});
     return;
   }
 
@@ -297,16 +333,15 @@ void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp, i
     if (code == BASE_OPCODE::NONE) {
       std::pair<Token, Token> args = getMemArg(inp[i]);
       tokens.push_back(args.first);
-      if (args.second.val == "" && args.second.token == TOKEN_TYPE::MARG) continue;
+      if (args.second.val == "" && args.second.token == TOKEN_TYPE::MARG)
+        continue;
       tokens.push_back(args.second);
     } else {
-      tokens.push_back({.token=TOKEN_TYPE::OPCODE,.line=line,.val=inp[i]});
+      tokens.push_back(
+          {.token = TOKEN_TYPE::OPCODE, .line = line, .val = inp[i]});
     }
-    
   }
-
 }
-
 
 /**
  * @brief Retrieves the LOAD OPCODES enum that corresponds with the string
@@ -322,21 +357,30 @@ void tokenize(std::vector<Token> &tokens, const std::vector<std::string> &inp, i
  * OPCODES opcode = getLoadOPCODE(str,0); // returns OPCODES::LOAD_M
  * ```
  **/
-OPCODES getLoadOPCODE(const std::string& val,int line) {
-  if (val == "M()") return OPCODES::LOAD_M;
-  if (val == "-M()") return OPCODES::LOAD_NEGM;
-  if (val == "|M()|") return OPCODES::LOAD_ABSM;
-  if (val == "-|M()|") return OPCODES::LOAD_NABSM;
+OPCODES getLoadOPCODE(const std::string &val, int line) {
+  if (val == "M()")
+    return OPCODES::LOAD_M;
+  if (val == "-M()")
+    return OPCODES::LOAD_NEGM;
+  if (val == "|M()|")
+    return OPCODES::LOAD_ABSM;
+  if (val == "-|M()|")
+    return OPCODES::LOAD_NABSM;
 
-  if (val == "MQ") return OPCODES::LOAD_MQ;
-  if (val == "MQM()") return OPCODES::LOAD_MQM;
-  if (WARN_LINE) errorBuffer.push_back(std::format("LINE {}:  \"LOAD {}\" IS NOT A VALID LOAD OPCODE",line,val));
+  if (val == "MQ")
+    return OPCODES::LOAD_MQ;
+  if (val == "MQM()")
+    return OPCODES::LOAD_MQM;
+  if (WARN_LINE)
+    errorBuffer.push_back(std::format(
+        "LINE {}:  \"LOAD {}\" IS NOT A VALID LOAD OPCODE", line, val));
   ++errorCount;
   return OPCODES::HALT;
 }
 
 /**
- * @brief Retrieves the Arithmetic OPCODES enum that corresponds with the BASE_OPCODE and string
+ * @brief Retrieves the Arithmetic OPCODES enum that corresponds with the
+ BASE_OPCODE and string
  *
  * @param opcode a base opcode
  * @param val A const ref to the string containing an Arithmetic OPCODE
@@ -350,27 +394,46 @@ OPCODES getLoadOPCODE(const std::string& val,int line) {
  * OPCODES opcode = getArithOPCODE(op,str,0); // returns OPCODES::ADD_M
  * ```
  **/
-OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val, int line) {
-  if (opcode == BASE_OPCODE::ADD && val == "M()") return OPCODES::ADD_M;
-  if (opcode == BASE_OPCODE::ADD && val == "|M()|") return OPCODES::ADD_MABS;
-  if (opcode == BASE_OPCODE::ADD && WARN_LINE) {errorBuffer.push_back(std::format("LINE {}:  \"ADD {}\" IS NOT A VALID ADD OPCODE",line,val));}
-  
-  if (opcode == BASE_OPCODE::SUB && val == "M()") return OPCODES::SUB_M;
-  if (opcode == BASE_OPCODE::SUB && val == "|M()|") return OPCODES::SUB_MABS;
-  if (opcode == BASE_OPCODE::SUB && WARN_LINE) {errorBuffer.push_back(std::format("LINE {}:  \"SUB {}\" IS NOT A VALID SUB OPCODE",line,val));}
+OPCODES getArithOPCODE(BASE_OPCODE opcode, std::string val, int line) {
+  if (opcode == BASE_OPCODE::ADD && val == "M()")
+    return OPCODES::ADD_M;
+  if (opcode == BASE_OPCODE::ADD && val == "|M()|")
+    return OPCODES::ADD_MABS;
+  if (opcode == BASE_OPCODE::ADD && WARN_LINE) {
+    errorBuffer.push_back(std::format(
+        "LINE {}:  \"ADD {}\" IS NOT A VALID ADD OPCODE", line, val));
+  }
 
-  if (opcode == BASE_OPCODE::MUL && val == "M()") return OPCODES::MUL_M;
-  if (opcode == BASE_OPCODE::MUL && WARN_LINE) {errorBuffer.push_back(std::format("LINE {}:  \"MUL {}\" IS NOT A VALID MUL OPCODE",line,val));}
-  
-  if (opcode == BASE_OPCODE::DIV && val == "M()") return OPCODES::DIV_M;
-  if (opcode == BASE_OPCODE::DIV && WARN_LINE) {errorBuffer.push_back(std::format("LINE {}:  \"DIV {}\" IS NOT A VALID DIV OPCODE",line, val));}
+  if (opcode == BASE_OPCODE::SUB && val == "M()")
+    return OPCODES::SUB_M;
+  if (opcode == BASE_OPCODE::SUB && val == "|M()|")
+    return OPCODES::SUB_MABS;
+  if (opcode == BASE_OPCODE::SUB && WARN_LINE) {
+    errorBuffer.push_back(std::format(
+        "LINE {}:  \"SUB {}\" IS NOT A VALID SUB OPCODE", line, val));
+  }
+
+  if (opcode == BASE_OPCODE::MUL && val == "M()")
+    return OPCODES::MUL_M;
+  if (opcode == BASE_OPCODE::MUL && WARN_LINE) {
+    errorBuffer.push_back(std::format(
+        "LINE {}:  \"MUL {}\" IS NOT A VALID MUL OPCODE", line, val));
+  }
+
+  if (opcode == BASE_OPCODE::DIV && val == "M()")
+    return OPCODES::DIV_M;
+  if (opcode == BASE_OPCODE::DIV && WARN_LINE) {
+    errorBuffer.push_back(std::format(
+        "LINE {}:  \"DIV {}\" IS NOT A VALID DIV OPCODE", line, val));
+  }
   ++errorCount;
 
   return OPCODES::HALT;
 }
 
 /**
- * @brief Retrieves the Jump OPCODES enum that corresponds with the BASE_OPCODE and string
+ * @brief Retrieves the Jump OPCODES enum that corresponds with the BASE_OPCODE
+ and string
  *
  * @param val A const ref to the string containing a Jump OPCODE
    @param line an int where the string/instr is found at
@@ -383,18 +446,23 @@ OPCODES getArithOPCODE(BASE_OPCODE opcode,std::string val, int line) {
  * ```
  **/
 OPCODES getJumpOPCODE(std::string val, int line) {
-  if (val == "M(0:19)") return OPCODES::JUMP_ML;
-  if (val == "M(20:39)") return OPCODES::JUMP_MR;
+  if (val == "M(0:19)")
+    return OPCODES::JUMP_ML;
+  if (val == "M(20:39)")
+    return OPCODES::JUMP_MR;
 
-  if (val == "+M(0:19)") return OPCODES::JUMP_PML;
-  if (val == "+M(20:39)") return OPCODES::JUMP_PMR;
-  
-  if (WARN_LINE) errorBuffer.push_back(std::format("LINE {}: \"JUMP {}\" IS NOT A VALID JUMP OPCODE",line,val));
+  if (val == "+M(0:19)")
+    return OPCODES::JUMP_PML;
+  if (val == "+M(20:39)")
+    return OPCODES::JUMP_PMR;
+
+  if (WARN_LINE)
+    errorBuffer.push_back(std::format(
+        "LINE {}: \"JUMP {}\" IS NOT A VALID JUMP OPCODE", line, val));
   ++errorCount;
 
   return OPCODES::HALT;
 }
-
 
 /**
  * @brief Retrieves the STOR OPCODES enum that corresponds with the string
@@ -411,17 +479,21 @@ OPCODES getJumpOPCODE(std::string val, int line) {
  * ```
  **/
 OPCODES getStorOPCODE(std::string val, int line) {
-  if (val == "M()") return OPCODES::STOR_M;
+  if (val == "M()")
+    return OPCODES::STOR_M;
 
-  if (val == "M(8:19)") return OPCODES::STOR_ML;
-  if (val == "M(28:39)") return OPCODES::STOR_MR;
-  
-  if (WARN_LINE) errorBuffer.push_back(std::format("LINE {}:  \"STOR {}\" IS NOT A VALID STOR OPCODE",line,val));
+  if (val == "M(8:19)")
+    return OPCODES::STOR_ML;
+  if (val == "M(28:39)")
+    return OPCODES::STOR_MR;
+
+  if (WARN_LINE)
+    errorBuffer.push_back(std::format(
+        "LINE {}:  \"STOR {}\" IS NOT A VALID STOR OPCODE", line, val));
   ++errorCount;
 
   return OPCODES::HALT;
 }
-
 
 /**
  * @brief Retrieves the OPCODES enum that corresponds with provided Tokens
@@ -442,31 +514,76 @@ OPCODES convertBaseOPTOOP(Token opcode, Token arg) {
   BASE_OPCODE op = strToBASEOPCODE(opcode.val);
   switch (op) {
   case BASE_OPCODE::LOAD:
-    return getLoadOPCODE(arg.val,opcode.line);
+    return getLoadOPCODE(arg.val, opcode.line);
     break;
-  
+
   case BASE_OPCODE::ADD:
-    return getArithOPCODE(op,arg.val,opcode.line);
+    return getArithOPCODE(op, arg.val, opcode.line);
     break;
-  
+
   case BASE_OPCODE::SUB:
-   return getArithOPCODE(op,arg.val,opcode.line);
+    return getArithOPCODE(op, arg.val, opcode.line);
     break;
-  
+
   case BASE_OPCODE::MUL:
-    return getArithOPCODE(op,arg.val,opcode.line);
+    return getArithOPCODE(op, arg.val, opcode.line);
     break;
-  
+
   case BASE_OPCODE::DIV:
-    return getArithOPCODE(op,arg.val,opcode.line);
+    return getArithOPCODE(op, arg.val, opcode.line);
     break;
-  
+
   case BASE_OPCODE::JUMP:
-    return getJumpOPCODE(arg.val,opcode.line);
+    return getJumpOPCODE(arg.val, opcode.line);
     break;
 
   case BASE_OPCODE::STOR:
-    return getStorOPCODE(arg.val,opcode.line);
+    return getStorOPCODE(arg.val, opcode.line);
+    break;
+
+  case BASE_OPCODE::LSH:
+    return OPCODES::LSH;
+    break;
+
+  case BASE_OPCODE::RSH:
+    return OPCODES::RSH;
+    break;
+
+  default:
+    return OPCODES::HALT;
+    break;
+  }
+}
+
+OPCODES getOpCode(BASE_OPCODE op, std::string arg, int32_t line) {
+
+  switch (op) {
+  case BASE_OPCODE::LOAD:
+    return getLoadOPCODE(arg, line);
+    break;
+
+  case BASE_OPCODE::ADD:
+    return getArithOPCODE(op, arg, line);
+    break;
+
+  case BASE_OPCODE::SUB:
+    return getArithOPCODE(op, arg, line);
+    break;
+
+  case BASE_OPCODE::MUL:
+    return getArithOPCODE(op, arg, line);
+    break;
+
+  case BASE_OPCODE::DIV:
+    return getArithOPCODE(op, arg, line);
+    break;
+
+  case BASE_OPCODE::JUMP:
+    return getJumpOPCODE(arg, line);
+    break;
+
+  case BASE_OPCODE::STOR:
+    return getStorOPCODE(arg, line);
     break;
 
   case BASE_OPCODE::LSH:
@@ -501,23 +618,68 @@ std::string binString(int32_t n) {
   std::string bin = num.to_string();
   std::string nBin = "";
   unsigned short c = 0;
-  
-  for (auto it = bin.begin();it != bin.end(); ++it) {
+
+  for (auto it = bin.begin(); it != bin.end(); ++it) {
     if (c == 4) {
       nBin += " ";
       c = 0;
     }
-    
+
     nBin += *it;
-    
+
     ++c;
-    
-  }  
-  
-  
-  return nBin; 
+  }
+
+  return nBin;
 }
 
+void ntokensize(std::vector<NToken> &tokens,
+                const std::vector<std::string> &inp, int line) {
+
+  int32_t loc = std::stoi(inp[0]);
+
+  auto it = inp.begin() + 1;
+  std::println("IT: {}", *it);
+  if (it + 1 == inp.end()) {
+    tokens.push_back({.type = NTOKEN_TYPE::VAR,
+                      .val = std::stoi(*it),
+                      .loc = loc,
+                      .line = line});
+    return;
+  }
+  BASE_OPCODE base;
+  BASE_OPCODE prevBase;
+  while (it != inp.end()) {
+    std::println("IT: {}", *it);
+    base = strToBASEOPCODE(*it);
+
+    if (base != BASE_OPCODE::NONE) {
+      prevBase = base;
+
+      if (it + 1 == inp.end()) {
+        tokens.push_back({.type = NTOKEN_TYPE::OPCODE,
+                          .val = 0,
+                          .loc = loc,
+                          .line = line,
+                          .op = getOpCode(base, "", line)});
+      }
+      ++it;
+      continue;
+    }
+
+    if (base == BASE_OPCODE::NONE) {
+      NToken newToken;
+      auto [arg, marg] = getMarg(*it);
+      newToken.type = NTOKEN_TYPE::OPCODE;
+      newToken.op = getOpCode(prevBase, arg, line);
+      newToken.val = marg;
+      newToken.line = line;
+      newToken.loc = loc;
+      tokens.push_back(newToken);
+    }
+    ++it;
+  }
+}
 
 /**
  * @brief Loads given Instructions into 8 bytes (64-bit)
@@ -532,14 +694,16 @@ std::string binString(int32_t n) {
  * ```cpp
  * INSTRUCTION leftInstr =  {LOAD_M,0};
  * INSTRUCTION rightInstr = {ADD_M,10};
- * loadInstrIntoBytes(1,leftInstr,rightInstr); //returns uint64_t == 0000 0000 0000 0000 0000 0001 0000 0001 0000 0000 0101 0000 1010
+ * loadInstrIntoBytes(1,leftInstr,rightInstr); //returns uint64_t == 0000 0000
+ * 0000 0000 0000 0001 0000 0001 0000 0000 0101 0000 1010
  * ```
  *
  **/
-uint64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
-                      INSTRUCTION instr2 = {HALT})
-{
-  uint64_t mem = (static_cast<int64_t>(address) << 32) | (instr1.opcode << 24) | (instr1.operand << 16) | (instr2.opcode << 8) | instr2.operand;
+uint64_t loadInstrIntoBytes(int32_t address, INSTRUCTION instr1 = {HALT},
+                            INSTRUCTION instr2 = {HALT}) {
+  uint64_t mem = (static_cast<uint64_t>(static_cast<uint32_t>(address)) << 32) |
+                 (instr1.opcode << 24) | (instr1.operand << 16) |
+                 (instr2.opcode << 8) | instr2.operand;
   return mem;
 }
 
@@ -551,17 +715,20 @@ uint64_t loadInstrIntoBytes(int8_t address, INSTRUCTION instr1 = {HALT},
  *
  * #### Usage:
  * ```cpp
- * loadMemIntoBytes(1,105); //returns uint64_t == 0000 0000 0000 0000 0000 0001 0000 0000 0000 0000 00000 0000 0011 0100
+ * loadMemIntoBytes(1,105); //returns uint64_t == 0000 0000 0000 0000 0000 0001
+ * 0000 0000 0000 0000 00000 0000 0011 0100
  * ```
  *
  **/
-uint64_t loadMemIntoBytes(int8_t address, int32_t var) {
-  uint64_t mem = (static_cast<uint64_t>(static_cast<uint8_t>(address)) << 32) | static_cast<uint32_t>(var);
+uint64_t loadMemIntoBytes(int32_t address, int32_t var) {
+  uint64_t mem = (static_cast<uint64_t>(static_cast<uint32_t>(address)) << 32) |
+                 static_cast<uint32_t>(var);
   return mem;
 }
 
 /**
- * @brief Writes provided vector of unsigned 64-bits to binary file created with given name and extension
+ * @brief Writes provided vector of unsigned 64-bits to binary file created with
+ * given name and extension
  *
  * @param bytes vector of bytes to be written to file
  * @param fileName string containing name of desired file
@@ -570,27 +737,30 @@ uint64_t loadMemIntoBytes(int8_t address, int32_t var) {
  * #### Usage:
  * ```cpp
  * std::vector<uint64_t> vecOfBytes = ......;
- * writeBytesToFile(vecOfBytes, "hello",".bin"); // produces hello.bin containing data from vecOfBytes
+ * writeBytesToFile(vecOfBytes, "hello",".bin"); // produces hello.bin
+ * containing data from vecOfBytes
  * ```
  *
  **/
-void writeBytesToFile(std::vector<uint64_t> bytes, std::string fileName, std::string extension) {
+void writeBytesToFile(std::vector<uint64_t> bytes, std::string fileName,
+                      std::string extension) {
   std::ofstream output(fileName + "." + extension, std::ios::binary);
   if (!output.is_open()) {
     std::println("FILE ERROR");
     exit(1);
   }
 
-  output.write((char*)&bytes[0], bytes.size() * sizeof(uint64_t));
+  output.write((char *)&bytes[0], bytes.size() * sizeof(uint64_t));
   output.close();
 }
 
 /**
- * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes in the IAS memory map format
- * 
+ * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes
+ * in the IAS memory map format
  *
- * Is a wrapper around: 
- * ```cpp 
+ *
+ * Is a wrapper around:
+ * ```cpp
  * loadMemIntoBytes
  * ```
  *
@@ -602,26 +772,27 @@ void writeBytesToFile(std::vector<uint64_t> bytes, std::string fileName, std::st
  * ```
  *
  **/
-std::vector<uint64_t> convertTokensToMemory(const std::vector<Token> & tokens) {
+std::vector<uint64_t> convertTokensToMemory(const std::vector<Token> &tokens) {
   std::vector<uint64_t> mem;
 
   int8_t addr;
   int32_t var;
 
-  for (size_t i = 0; i < tokens.size(); i+=2) {
+  for (size_t i = 0; i < tokens.size(); i += 2) {
     addr = std::stoi(tokens[i].val);
-    var = std::stoi(tokens[i+1].val);
-    mem.push_back(loadMemIntoBytes(addr,var));
+    var = std::stoi(tokens[i + 1].val);
+    mem.push_back(loadMemIntoBytes(addr, var));
   }
 
   return mem;
 }
 
 /**
- * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes in the IAS instruction map format
+ * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes
+ * in the IAS instruction map format
  *
- * Is a wrapper around: 
- * ```cpp 
+ * Is a wrapper around:
+ * ```cpp
  * loadInstrIntoBytes
  * ```
  *
@@ -633,7 +804,8 @@ std::vector<uint64_t> convertTokensToMemory(const std::vector<Token> & tokens) {
  * ```
  *
  **/
-std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &tokens) {
+std::vector<uint64_t>
+convertTokensToInstructions(const std::vector<Token> &tokens) {
   std::vector<uint64_t> instrs;
 
   int8_t addr;
@@ -641,12 +813,12 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
   INSTRUCTION instr2;
   bool load = false;
 
-  for (size_t i = 0; i< tokens.size(); ++i) {
+  for (size_t i = 0; i < tokens.size(); ++i) {
 
-    bool isOutOfBounds = i+2 > tokens.size();
+    bool isOutOfBounds = i + 2 > tokens.size();
 
     if (load) {
-      instrs.push_back(loadInstrIntoBytes(addr,instr1,instr2));
+      instrs.push_back(loadInstrIntoBytes(addr, instr1, instr2));
       load = false;
     }
 
@@ -655,12 +827,13 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
       continue;
     }
 
-    if (tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token == TOKEN_TYPE::LOC) {
-      OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
-      
-      if (!isOutOfBounds && tokens[i+2].token == TOKEN_TYPE::MARG) {
-        int8_t memadd = std::stoi(tokens[i+2].val);
-        instr1 = {op,memadd};
+    if (tokens[i].token == TOKEN_TYPE::OPCODE &&
+        tokens[i - 1].token == TOKEN_TYPE::LOC) {
+      OPCODES op = convertBaseOPTOOP(tokens[i], tokens[i + 1]);
+
+      if (!isOutOfBounds && tokens[i + 2].token == TOKEN_TYPE::MARG) {
+        int8_t memadd = std::stoi(tokens[i + 2].val);
+        instr1 = {op, memadd};
         ++i;
         continue;
       }
@@ -668,25 +841,26 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
       continue;
     }
 
-    if (!isOutOfBounds && tokens[i].token == TOKEN_TYPE::OPCODE && tokens[i-1].token != TOKEN_TYPE::LOC) {
-      OPCODES op = convertBaseOPTOOP(tokens[i],tokens[i+1]);
-      if (tokens[i+2].token == TOKEN_TYPE::MARG) {
-        int8_t memadd = std::stoi(tokens[i+2].val);
-        instr2 = {op,memadd};
+    if (!isOutOfBounds && tokens[i].token == TOKEN_TYPE::OPCODE &&
+        tokens[i - 1].token != TOKEN_TYPE::LOC) {
+      OPCODES op = convertBaseOPTOOP(tokens[i], tokens[i + 1]);
+      if (tokens[i + 2].token == TOKEN_TYPE::MARG) {
+        int8_t memadd = std::stoi(tokens[i + 2].val);
+        instr2 = {op, memadd};
         ++i;
         load = true;
         continue;
       }
       instr2 = {op};
-      
+
       load = true;
       continue;
     }
 
-    if (tokens[i].token == TOKEN_TYPE::OPCODE && i+1 >= tokens.size()) {
-      OPCODES op = convertBaseOPTOOP(tokens[i],{});
+    if (tokens[i].token == TOKEN_TYPE::OPCODE && i + 1 >= tokens.size()) {
+      OPCODES op = convertBaseOPTOOP(tokens[i], {});
       instr2 = {op};
-      
+
       load = true;
     }
     if (i + 1 >= tokens.size() && !load) {
@@ -700,28 +874,28 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
 
   if (SHOW_INSTR) {
     std::println("\nInstructions:");
-    for (const int64_t& t: instrs) {
+    for (const int64_t &t : instrs) {
       std::println("\tINSTR: {}", binString(t));
     }
   }
 
   return instrs;
-
 }
 
-
 /**
- * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes and writes them to appropriate IAS map file. 
- * Memory tokens get written to a bin file with the provided  with ```.imm``` extension. 
- * Instruction tokens get written to a bin file with the provided  with ```.iim``` extension
+ * @brief Converts provided vector of Tokens to vector of ```uint64_t``` bytes
+ * and writes them to appropriate IAS map file. Memory tokens get written to a
+ * bin file with the provided  with ```.imm``` extension. Instruction tokens get
+ * written to a bin file with the provided  with ```.iim``` extension
  *
- * Is a wrapper around: 
- * ```cpp 
+ * Is a wrapper around:
+ * ```cpp
  * convertTokensToMemory && convertTokensToInstructions
  * ```
  *
  * @param tokens vector of Tokens to be converted and written to file
- * @param fileName string containing desired name for ```.imm``` and ```.iim``` files
+ * @param fileName string containing desired name for ```.imm``` and ```.iim```
+ * files
  * #### Usage:
  * ```cpp
  * std::vector<Tokens> tokens = ......;
@@ -729,7 +903,8 @@ std::vector<uint64_t> convertTokensToInstructions(const std::vector<Token> &toke
  * ```
  *
  **/
-void convertTokensToBytes(const std::vector<Token> &tokens, std::string fileName) {
+void convertTokensToBytes(const std::vector<Token> &tokens,
+                          std::string fileName) {
   std::vector<Token> memTokens;
   std::vector<Token> instrs;
 
@@ -747,8 +922,51 @@ void convertTokensToBytes(const std::vector<Token> &tokens, std::string fileName
   std::vector<uint64_t> instrBytes = convertTokensToInstructions(instrs);
   std::vector<uint64_t> memBytes = convertTokensToMemory(memTokens);
 
-  writeBytesToFile(memBytes,fileName,"imm");
-  writeBytesToFile(instrBytes,fileName,"iim");
+  writeBytesToFile(memBytes, fileName, "imm");
+  writeBytesToFile(instrBytes, fileName, "iim");
+}
+
+std::vector<uint64_t> tokensToVars(const std::vector<NToken> &tokens) {
+  std::vector<uint64_t> mem;
+
+  for (const NToken &tk : tokens) {
+    mem.push_back(loadMemIntoBytes(tk.loc, tk.val));
+  }
+
+  return mem;
+}
+
+std::vector<uint64_t> tokensToInstrs(const std::vector<NToken> &tokens) {
+  std::vector<uint64_t> mem;
+
+  INSTRUCTION instr1;
+  INSTRUCTION instr2;
+
+  for (size_t i = 0; i < tokens.size() - 1; i += 2) {
+    instr1 = {.opcode = tokens[i].op, .operand = tokens[i].val};
+  }
+
+  return mem;
+}
+
+void tokensToBytes(const std::vector<NToken> &tokens, std::string fileName) {
+  std::vector<NToken> memTokens;
+  std::vector<NToken> instrs;
+
+  auto it = tokens.begin();
+  while (it != tokens.end()) {
+    if (it->type == NTOKEN_TYPE::VAR) {
+      memTokens.push_back(*it);
+    } else if (it->type == NTOKEN_TYPE::OPCODE) {
+      instrs.push_back(*it);
+    }
+  }
+
+  std::vector<uint64_t> instrBytes = convertTokensToInstructions(instrs);
+  std::vector<uint64_t> memBytes = convertTokensToMemory(memTokens);
+
+  writeBytesToFile(memBytes, fileName, "imm");
+  writeBytesToFile(instrBytes, fileName, "iim");
 }
 
 /**
@@ -764,105 +982,112 @@ void convertTokensToBytes(const std::vector<Token> &tokens, std::string fileName
  **/
 std::string removeExtension(std::string file) {
   std::string str;
-  for (const char& c: file) {
+  for (const char &c : file) {
     if (c == '.') {
       break;
     } else {
       str += c;
     }
-   
   }
   return str;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
 
   if (argc == 1) {
     std::println("ERROR: no input files");
     std::println("Expected: iasm [options] <IAS source file>");
-    std::println(
-      "Options:\n -warn-num {:>50}\n -warn-line {:>56}",
-      "Output warning if program has multiple errors",
-      "Output invalid OPCODES and the line number in source"
-      );
+    std::println("Options:\n -warn-num {:>50}\n -warn-line {:>56}",
+                 "Output warning if program has multiple errors",
+                 "Output invalid OPCODES and the line number in source");
     return EXIT_FAILURE;
   }
-  
-  if (argc == 2 && !strcmp(argv[1],"-help")) {
+
+  if (argc == 2 && !strcmp(argv[1], "-help")) {
     std::println("Usage: iasm [options] <IAS source file>");
-      std::println("{}",options);
-      return EXIT_SUCCESS;
+    std::println("{}", options);
+    return EXIT_SUCCESS;
   }
-  
-  
-  for (size_t i = 1; i < argc-1; ++i) {
-    if (!strcmp(argv[i],"-help")) {
+
+  for (size_t i = 1; i < argc - 1; ++i) {
+    if (!strcmp(argv[i], "-help")) {
       std::println("Usage: iasm [options] <IAS source file>");
-      std::println("{}",options);
+      std::println("{}", options);
       return EXIT_SUCCESS;
     }
-    if (!strcmp(argv[i],"-warn-num")) {
+    if (!strcmp(argv[i], "-warn-num")) {
       WARN_NUM = true;
       continue;
     }
-    if (!strcmp(argv[i],"-warn-line")) {
+    if (!strcmp(argv[i], "-warn-line")) {
       WARN_LINE = true;
       continue;
-    } 
-    if (!strcmp(argv[i],"-show-instr")) {
+    }
+    if (!strcmp(argv[i], "-show-instr")) {
       SHOW_INSTR = true;
       continue;
     }
     if (std::filesystem::exists(argv[i])) {
-      std::println("ERROR: FILE: <IAS source file> must NOT come before arguments \nAssembler terminated",argv[i]);
+      std::println("ERROR: FILE: <IAS source file> must NOT come before "
+                   "arguments \nAssembler terminated",
+                   argv[i]);
       return EXIT_FAILURE;
     }
-    
-    std::println("ERROR: UNKOWN OPTION: \"{}\"\nAssembler terminated",argv[i]);
+
+    std::println("ERROR: UNKOWN OPTION: \"{}\"\nAssembler terminated", argv[i]);
     return EXIT_FAILURE;
-  } 
+  }
 
   if (argc > 5) {
     std::println("ERROR: too many args");
     std::println("Expected: iasm [options] <IAS source file>");
-    std::println("{}",options);
+    std::println("{}", options);
     return EXIT_FAILURE;
   }
-  
-  if (!std::filesystem::exists(argv[argc-1])) {
-    std::println("ERROR: FILE: \"{}\" is not a valid file\nAssembler terminated",argv[argc-1]);
+
+  if (!std::filesystem::exists(argv[argc - 1])) {
+    std::println(
+        "ERROR: FILE: \"{}\" is not a valid file\nAssembler terminated",
+        argv[argc - 1]);
     return EXIT_FAILURE;
   }
-  
-  ifstream file(argv[argc-1]);
+
+  ifstream file(argv[argc - 1]);
   std::string st;
   std::vector<Token> tokens;
+  std::vector<NToken> tk;
   int lineNumber = 1;
   while (getline(file, st)) {
 
     std::string nString = removeComment(st);
     if (nString.length() > 0) {
-      tokenize(tokens, splitLine(nString),lineNumber);
+      tokenize(tokens, splitLine(nString), lineNumber);
+      ntokensize(tk, splitLine(nString), lineNumber);
     }
     ++lineNumber;
   }
 
-  convertTokensToBytes(tokens, removeExtension(argv[argc-1]));
-  
+  for (const NToken &t : tk) {
+    std::println("TYPE: {}, VAL: {}, LOC: {}, LINE: {}, OP: {}",
+                 (int32_t)t.type, t.val, t.loc, t.line, (int32_t)t.op);
+  }
+
+  convertTokensToBytes(tokens, removeExtension(argv[argc - 1]));
+
   if (WARN_LINE && errorCount > 0) {
     std::println("\nErrors:");
-    for (std::string s: errorBuffer){
-      std::println("\t{}",s);
+    for (std::string s : errorBuffer) {
+      std::println("\t{}", s);
     }
   }
-  
+
   if (WARN_NUM && errorCount > 0) {
-    std::println("\n\033[31mWARNING:\033[34m program assembled with \033[31m{} \033[34merrors\nProgram may not run correctly!",errorCount);
+    std::println("\n\033[31mWARNING:\033[34m program assembled with \033[31m{} "
+                 "\033[34merrors\nProgram may not run correctly!",
+                 errorCount);
   }
-  
+
   std::println("\n\033[32mAssembling Success");
 
-
   return 0;
-
 }
