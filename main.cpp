@@ -333,6 +333,11 @@ std::pair<std::string, int40_t> getMarg(const std::string &str) {
     }
   }
 
+  std::println("MARG: {}", marg);
+  if (marg == "") {
+    return {arg, 0};
+  }
+
   return {arg, int40_t(std::stoi(marg))};
 }
 
@@ -665,9 +670,30 @@ OPCODES getOpCode(BASE_OPCODE op, std::string arg, int32_t line) {
  * std::string bin = binString(11); // returns "0000 0000 0000 1011"
  * ```
  **/
+std::string binString(int64_t n) {
+
+  std::bitset<64> num(n);
+  std::string bin = num.to_string();
+  std::string nBin = "";
+  unsigned short c = 0;
+
+  for (auto it = bin.begin(); it != bin.end(); ++it) {
+    if (c == 4) {
+      nBin += " ";
+      c = 0;
+    }
+
+    nBin += *it;
+
+    ++c;
+  }
+
+  return nBin;
+}
+
 std::string binString(int40_t n) {
 
-  std::bitset<32> num(n.getVal());
+  std::bitset<40> num(n.getVal());
   std::string bin = num.to_string();
   std::string nBin = "";
   unsigned short c = 0;
@@ -695,7 +721,7 @@ void ntokensize(std::vector<NToken> &tokens,
   std::println("IT: {}", *it);
   if (it + 1 == inp.end()) {
     tokens.push_back({.type = NTOKEN_TYPE::VAR,
-                      .val = std::stoi(*it),
+                      .val = int40_t(std::stoi(*it)),
                       .loc = loc,
                       .line = line});
     return;
@@ -752,11 +778,14 @@ void ntokensize(std::vector<NToken> &tokens,
  * ```
  *
  **/
-uint64_t loadInstrIntoBytes(int40_t address, INSTRUCTION instr1 = {HALT},
-                            INSTRUCTION instr2 = {HALT}) {
-  uint64_t mem = (address << 40).getVal() | ((int64_t)instr1.opcode << 32) |
-                 (instr1.operand << 20) | ((int64_t)instr2.opcode << 12) |
-                 instr2.operand;
+int64_t loadInstrIntoBytes(int40_t address, INSTRUCTION instr1 = {HALT},
+                           INSTRUCTION instr2 = {HALT}) {
+  int40_t instruction = ((int64_t)instr1.opcode << 32) |
+                        (instr1.operand << 20) |
+                        ((int64_t)instr2.opcode << 12) | instr2.operand;
+  std::println("LIIB: {}, ADDR: {}, ADDRS: {}", binString(instruction),
+               binString(address), address.getVal() << 40);
+  int64_t mem = (address.getVal() << 40) | instruction.getVal();
   return mem;
 }
 
@@ -773,8 +802,8 @@ uint64_t loadInstrIntoBytes(int40_t address, INSTRUCTION instr1 = {HALT},
  * ```
  *
  **/
-uint64_t loadMemIntoBytes(int40_t address, int40_t var) {
-  uint64_t mem = (address << 40).getVal() | var.getVal();
+int64_t loadMemIntoBytes(int40_t address, int40_t var) {
+  int64_t mem = (address.getVal() << 40) | var.getVal();
   return mem;
 }
 
@@ -794,7 +823,7 @@ uint64_t loadMemIntoBytes(int40_t address, int40_t var) {
  * ```
  *
  **/
-void writeBytesToFile(std::vector<uint64_t> bytes, std::string fileName,
+void writeBytesToFile(std::vector<int64_t> bytes, std::string fileName,
                       std::string extension) {
   std::ofstream output(fileName + "." + extension, std::ios::binary);
   if (!output.is_open()) {
@@ -955,31 +984,31 @@ convertTokensToInstructions(const std::vector<Token> &tokens) {
  * ```
  *
  **/
-void convertTokensToBytes(const std::vector<Token> &tokens,
-                          std::string fileName) {
-  std::vector<Token> memTokens;
-  std::vector<Token> instrs;
+// void convertTokensToBytes(const std::vector<Token> &tokens,
+// std::string fileName) {
+// std::vector<Token> memTokens;
+// std::vector<Token> instrs;
 
-  for (int i = 0; i < tokens.size(); ++i) {
+// for (int i = 0; i < tokens.size(); ++i) {
 
-    if (tokens[i].token == TOKEN_TYPE::LOC &&
-        tokens[i + 1].token == TOKEN_TYPE::VAR) {
-      memTokens.push_back(tokens[i]);
-      memTokens.push_back(tokens[i + 1]);
-      ++i;
-      continue;
-    }
-    instrs.push_back(tokens[i]);
-  }
-  std::vector<uint64_t> instrBytes = convertTokensToInstructions(instrs);
-  std::vector<uint64_t> memBytes = convertTokensToMemory(memTokens);
+// if (tokens[i].token == TOKEN_TYPE::LOC &&
+// tokens[i + 1].token == TOKEN_TYPE::VAR) {
+// memTokens.push_back(tokens[i]);
+// memTokens.push_back(tokens[i + 1]);
+// ++i;
+// continue;
+// }
+// instrs.push_back(tokens[i]);
+// }
+// std::vector<uint64_t> instrBytes = convertTokensToInstructions(instrs);
+// std::vector<uint64_t> memBytes = convertTokensToMemory(memTokens);
 
-  writeBytesToFile(memBytes, fileName, "imm");
-  writeBytesToFile(instrBytes, fileName, "iim");
-}
+// writeBytesToFile(memBytes, fileName, "imm");
+// writeBytesToFile(instrBytes, fileName, "iim");
+// }
 
-std::vector<uint64_t> tokensToVars(const std::vector<NToken> &tokens) {
-  std::vector<uint64_t> mem;
+std::vector<int64_t> tokensToVars(const std::vector<NToken> &tokens) {
+  std::vector<int64_t> mem;
 
   for (const NToken &tk : tokens) {
     mem.push_back(loadMemIntoBytes(tk.loc, tk.val));
@@ -988,8 +1017,8 @@ std::vector<uint64_t> tokensToVars(const std::vector<NToken> &tokens) {
   return mem;
 }
 
-std::vector<uint64_t> tokensToInstrs(std::vector<NToken> &tokens) {
-  std::vector<uint64_t> mem;
+std::vector<int64_t> tokensToInstrs(std::vector<NToken> &tokens) {
+  std::vector<int64_t> mem;
 
   INSTRUCTION instr1;
   INSTRUCTION instr2;
@@ -1001,12 +1030,18 @@ std::vector<uint64_t> tokensToInstrs(std::vector<NToken> &tokens) {
               .operand = (int16_t)tokens[i].val.getVal()};
 
     if (i + 1 >= tkSize) {
+      std::println("TINSTRS1: OP-{} OPR-{}, TINSTRS2: OP-{} OPR-{}",
+                   (int8_t)instr1.opcode, instr1.operand, (int8_t)instr2.opcode,
+                   instr2.operand);
       mem.push_back(loadInstrIntoBytes(tokens[i].loc, instr1));
       break;
     }
 
-    instr1 = {.opcode = tokens[i + 1].op,
+    instr2 = {.opcode = tokens[i + 1].op,
               .operand = (int16_t)tokens[i + 1].val.getVal()};
+    std::println("TINSTRS1: OP-{} OPR-{}, TINSTRS2: OP-{} OPR-{}",
+                 (int8_t)instr1.opcode, instr1.operand, (int8_t)instr2.opcode,
+                 instr2.operand);
     mem.push_back(loadInstrIntoBytes(tokens[i].loc, instr1, instr2));
   }
 
@@ -1027,11 +1062,12 @@ void tokensToBytes(const std::vector<NToken> &tokens, std::string fileName) {
     ++it;
   }
 
-  std::vector<uint64_t> instrBytes = tokensToInstrs(instrs);
-  std::vector<uint64_t> memBytes = tokensToVars(memTokens);
+  std::vector<int64_t> instrBytes = tokensToInstrs(instrs);
+  std::vector<int64_t> memBytes = tokensToVars(memTokens);
 
   for (size_t i = 0; i < instrBytes.size(); ++i) {
-    std::println("INSTRS: {}", binString(instrBytes[i]));
+    std::println("INSTRS: {}, VAL: {}", binString(instrBytes[i]),
+                 instrBytes[i]);
   }
 
   writeBytesToFile(memBytes, fileName, "imm");
