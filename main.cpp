@@ -44,6 +44,59 @@ struct Token {
   std::string val;
 };
 
+struct int40_t {
+private:
+  int64_t val;
+
+  int64_t normalize(int64_t v) { return (v << 24) >> 24; }
+
+public:
+  int40_t(int64_t num) : val(normalize(num)) {}
+  int40_t() : val(0) {}
+
+  int40_t(const int40_t &num) { val = num.val; }
+
+  int40_t &operator=(const int &) { return *this; }
+
+  int40_t operator+(const int40_t &rhs) { return int40_t(val + rhs.val); }
+  int40_t operator-(const int40_t &rhs) { return int40_t(val - rhs.val); }
+  int40_t operator*(const int40_t &rhs) { return int40_t(val * rhs.val); }
+  int40_t operator/(const int40_t &rhs) { return int40_t(val / rhs.val); }
+  int40_t operator%(const int40_t &rhs) { return int40_t(val % rhs.val); }
+  int40_t operator++() {
+    *this = int40_t(val + 1);
+    return *this;
+  }
+  int40_t operator--() {
+    *this = int40_t(val - 1);
+    return *this;
+  }
+
+  int40_t &operator+=(const int40_t &rhs) {
+    val += rhs.val;
+    val = normalize(val);
+    return *this;
+  }
+
+  int40_t &operator-=(const int40_t &rhs) {
+    val -= rhs.val;
+    val = normalize(val);
+    return *this;
+  }
+
+  int40_t operator-() { return int40_t(-val); }
+
+  auto operator<=>(const int40_t &rhs) const { return val <=> rhs.val; }
+  bool operator==(const int40_t &rhs) const { return val == rhs.val; }
+
+  int40_t operator&(const int40_t &rhs) { return int40_t(val & rhs.val); }
+  int40_t operator|(const int40_t &rhs) { return int40_t(val | rhs.val); }
+  int40_t operator<<(const int40_t &rhs) { return int40_t(val << rhs.val); }
+  int40_t operator>>(const int40_t &rhs) { return int40_t(val >> rhs.val); }
+
+  const int64_t getVal() const { return val; }
+};
+
 enum class BASE_OPCODE : int8_t {
   HALT = 0,
   LOAD = 1,
@@ -101,15 +154,15 @@ enum OPCODES : int8_t {
 
 struct NToken {
   NTOKEN_TYPE type;
-  int32_t val;
-  int32_t loc;
+  int40_t val;
+  int40_t loc;
   int32_t line = -1;
   OPCODES op;
 };
 
 struct INSTRUCTION {
   OPCODES opcode;
-  int8_t operand = 0b0;
+  int16_t operand = 0b0;
 };
 
 /**
@@ -261,7 +314,7 @@ std::pair<Token, Token> getMemArg(const std::string &str) {
           {.token = TOKEN_TYPE::MARG, .val = marg}};
 }
 
-std::pair<std::string, int32_t> getMarg(const std::string &str) {
+std::pair<std::string, int40_t> getMarg(const std::string &str) {
   std::string arg;
   std::string marg;
 
@@ -280,7 +333,7 @@ std::pair<std::string, int32_t> getMarg(const std::string &str) {
     }
   }
 
-  return {arg, std::stoi(marg)};
+  return {arg, int40_t(std::stoi(marg))};
 }
 
 /**
@@ -612,9 +665,9 @@ OPCODES getOpCode(BASE_OPCODE op, std::string arg, int32_t line) {
  * std::string bin = binString(11); // returns "0000 0000 0000 1011"
  * ```
  **/
-std::string binString(int32_t n) {
+std::string binString(int40_t n) {
 
-  std::bitset<32> num(n);
+  std::bitset<32> num(n.getVal());
   std::string bin = num.to_string();
   std::string nBin = "";
   unsigned short c = 0;
@@ -636,7 +689,7 @@ std::string binString(int32_t n) {
 void ntokensize(std::vector<NToken> &tokens,
                 const std::vector<std::string> &inp, int line) {
 
-  int32_t loc = std::stoi(inp[0]);
+  int40_t loc = int40_t(std::stoi(inp[0]));
 
   auto it = inp.begin() + 1;
   std::println("IT: {}", *it);
@@ -699,11 +752,11 @@ void ntokensize(std::vector<NToken> &tokens,
  * ```
  *
  **/
-uint64_t loadInstrIntoBytes(int32_t address, INSTRUCTION instr1 = {HALT},
+uint64_t loadInstrIntoBytes(int40_t address, INSTRUCTION instr1 = {HALT},
                             INSTRUCTION instr2 = {HALT}) {
-  uint64_t mem = (static_cast<uint64_t>(static_cast<uint32_t>(address)) << 32) |
-                 (instr1.opcode << 24) | (instr1.operand << 16) |
-                 (instr2.opcode << 8) | instr2.operand;
+  uint64_t mem = (address << 40).getVal() | ((int64_t)instr1.opcode << 32) |
+                 (instr1.operand << 20) | ((int64_t)instr2.opcode << 12) |
+                 instr2.operand;
   return mem;
 }
 
@@ -720,9 +773,8 @@ uint64_t loadInstrIntoBytes(int32_t address, INSTRUCTION instr1 = {HALT},
  * ```
  *
  **/
-uint64_t loadMemIntoBytes(int32_t address, int32_t var) {
-  uint64_t mem = (static_cast<uint64_t>(static_cast<uint32_t>(address)) << 32) |
-                 static_cast<uint32_t>(var);
+uint64_t loadMemIntoBytes(int40_t address, int40_t var) {
+  uint64_t mem = (address << 40).getVal() | var.getVal();
   return mem;
 }
 
@@ -936,14 +988,26 @@ std::vector<uint64_t> tokensToVars(const std::vector<NToken> &tokens) {
   return mem;
 }
 
-std::vector<uint64_t> tokensToInstrs(const std::vector<NToken> &tokens) {
+std::vector<uint64_t> tokensToInstrs(std::vector<NToken> &tokens) {
   std::vector<uint64_t> mem;
 
   INSTRUCTION instr1;
   INSTRUCTION instr2;
 
-  for (size_t i = 0; i < tokens.size() - 1; i += 2) {
-    instr1 = {.opcode = tokens[i].op, .operand = tokens[i].val};
+  const size_t tkSize = tokens.size() - 1;
+
+  for (size_t i = 0; i < tkSize; i += 2) {
+    instr1 = {.opcode = tokens[i].op,
+              .operand = (int16_t)tokens[i].val.getVal()};
+
+    if (i + 1 >= tkSize) {
+      mem.push_back(loadInstrIntoBytes(tokens[i].loc, instr1));
+      break;
+    }
+
+    instr1 = {.opcode = tokens[i + 1].op,
+              .operand = (int16_t)tokens[i + 1].val.getVal()};
+    mem.push_back(loadInstrIntoBytes(tokens[i].loc, instr1, instr2));
   }
 
   return mem;
@@ -960,10 +1024,15 @@ void tokensToBytes(const std::vector<NToken> &tokens, std::string fileName) {
     } else if (it->type == NTOKEN_TYPE::OPCODE) {
       instrs.push_back(*it);
     }
+    ++it;
   }
 
-  std::vector<uint64_t> instrBytes = convertTokensToInstructions(instrs);
-  std::vector<uint64_t> memBytes = convertTokensToMemory(memTokens);
+  std::vector<uint64_t> instrBytes = tokensToInstrs(instrs);
+  std::vector<uint64_t> memBytes = tokensToVars(memTokens);
+
+  for (size_t i = 0; i < instrBytes.size(); ++i) {
+    std::println("INSTRS: {}", binString(instrBytes[i]));
+  }
 
   writeBytesToFile(memBytes, fileName, "imm");
   writeBytesToFile(instrBytes, fileName, "iim");
@@ -1054,14 +1123,14 @@ int main(int argc, char *argv[]) {
 
   ifstream file(argv[argc - 1]);
   std::string st;
-  std::vector<Token> tokens;
+  // std::vector<Token> tokens;
   std::vector<NToken> tk;
   int lineNumber = 1;
   while (getline(file, st)) {
 
     std::string nString = removeComment(st);
     if (nString.length() > 0) {
-      tokenize(tokens, splitLine(nString), lineNumber);
+      // tokenize(tokens, splitLine(nString), lineNumber);
       ntokensize(tk, splitLine(nString), lineNumber);
     }
     ++lineNumber;
@@ -1069,10 +1138,13 @@ int main(int argc, char *argv[]) {
 
   for (const NToken &t : tk) {
     std::println("TYPE: {}, VAL: {}, LOC: {}, LINE: {}, OP: {}",
-                 (int32_t)t.type, t.val, t.loc, t.line, (int32_t)t.op);
+                 (int32_t)t.type, t.val.getVal(), t.loc.getVal(), t.line,
+                 (int8_t)t.op);
   }
 
-  convertTokensToBytes(tokens, removeExtension(argv[argc - 1]));
+  // convertTokensToBytes(tokens, removeExtension(argv[argc - 1]));
+
+  tokensToBytes(tk, removeExtension(argv[argc - 1]));
 
   if (WARN_LINE && errorCount > 0) {
     std::println("\nErrors:");
